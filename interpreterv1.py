@@ -126,23 +126,3 @@ class Interpreter(InterpreterBase):
 
 ## DELETEEE AT END
 ## open source testing ##
-def main():
-    interpreter = Interpreter()
-    p1 = """func main() { /* a function that computes the sum of 2 numbers */
-    first = 2;
-    second = 5;
-    sum = (first + second);
-    print("The sum is ", sum, "!");
-    }
-    """
-    p2 = """func main() { /* a function that computes the sum of 2 numbers */
-    first = inputi("enter a #: ");
-    second = 5;
-    sum = (first + second);
-    print("The sum is ", sum, "!");
-    }
-    """
-    interpreter.run(p2)
-    
-if __name__ == "__main__":
-    main()
