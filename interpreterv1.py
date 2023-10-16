@@ -3,7 +3,7 @@ from intbase import InterpreterBase
 from brewparse import parse_program
 
 class Interpreter(InterpreterBase):
-    def __init__(self, console_output=True, inp=None):
+    def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
 
     def run(self, program):
@@ -17,15 +17,15 @@ class Interpreter(InterpreterBase):
         # assignment and printing are statements that are OK
         ast = parse_program(program)
         self.variable_name_to_value = {} # need self???
-       
+        
         # main func node = get main func node (ast)
         # is program node guaranteed to be first???
-        prog_node = ast.get(InterpreterBase.PROGRAM_DEF)
+        #prog_node = ast.get(InterpreterBase.PROGRAM_DEF)
         
         # get single node in program function list -> main()
         # only one node so name will be main
         # i dont think any args rn
-        main_func_node = prog_node.get('functions')[0].get(InterpreterBase.FUNC_DEF)
+        main_func_node = ast.get('functions')[0]
         # ??? need this
 
         #run_func(main_func_node)
@@ -38,11 +38,14 @@ class Interpreter(InterpreterBase):
         # aka order of execution
         for statement_node in func_node.get('statements'):
             self.run_statement(statement_node)
+            #print(statement_node)
 
     def run_statement(self, statement_node):
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=": # assignment
+            # print("high")
             self.do_assignment(statement_node)
+            
         #elif statement_node.elem_type == InterpreterBase.FCALL_DEF: # function call
         #do_func_call(statement_node)
 
@@ -50,8 +53,10 @@ class Interpreter(InterpreterBase):
         target_var_name = statement_node.get('name')
         # in x = 2 + 10 this is x
         source_node = statement_node.get('expression')
+        #print("target ", target_var_name, "expression ", source_node)
         # either expression like 2+10, value like 2, or var like x=y
         resulting_value = self.evaluate_expression(source_node)
+        #print("result ", resulting_value)
         self.variable_name_to_value[target_var_name] = resulting_value
 
     #def do_func_call(self, statement_node):
@@ -85,8 +90,8 @@ class Interpreter(InterpreterBase):
         op2 = expression_node.get('op2')
 
         op1 = self.evaluate_expression(op1)
-        op1 = self.evaluate_expression(op2)
-
+        op2 = self.evaluate_expression(op2)
+        # print("op1 ", op1, "op2", op2)
         if expression_node.elem_type == '+':
             return op1 + op2
         else: # subtraction
@@ -95,3 +100,19 @@ class Interpreter(InterpreterBase):
           
 
     # STARTING THESE BY THROWING NO ERRS
+
+## DELETEEE AT END
+## open source testing ##
+def main():
+    interpreter = Interpreter()
+    p1 = """func main() { /* a function that computes the sum of 2 numbers */
+    first = 2;
+    second = 5;
+    sum = (first + second);
+    print("The sum is ", sum, "!");
+    }
+    """
+    interpreter.run(p1)
+    
+if __name__ == "__main__":
+    main()
