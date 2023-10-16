@@ -45,9 +45,9 @@ class Interpreter(InterpreterBase):
         if statement_node.elem_type == "=": # assignment
             # print("high")
             self.do_assignment(statement_node)
-            
-        #elif statement_node.elem_type == InterpreterBase.FCALL_DEF: # function call
-        #do_func_call(statement_node)
+        elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
+            # function call
+            self.do_print_fcall(statement_node)
 
     def do_assignment(self, statement_node):
         target_var_name = statement_node.get('name')
@@ -59,8 +59,15 @@ class Interpreter(InterpreterBase):
         #print("result ", resulting_value)
         self.variable_name_to_value[target_var_name] = resulting_value
 
-    #def do_func_call(self, statement_node):
-    #pass
+    def do_print_fcall(self, statement_node):
+        # in v1 must be a print call
+        if statement_node.get('name') == 'print':
+            out_str = ""
+            for arg in statement_node.get('args'):
+                out_str += str(self.evaluate_expression(arg))
+            InterpreterBase().output(out_str)
+        # throw err if not
+        # also its 0+ nodes
     
     def evaluate_expression(self, node):
         if node.elem_type == InterpreterBase.STRING_DEF or node.elem_type == InterpreterBase.INT_DEF:
@@ -72,8 +79,24 @@ class Interpreter(InterpreterBase):
         elif node.elem_type == '+' or node.elem_type == '-':
             # expression node representing binary operation
             return self.evaluate_binary_operator(node)
-            # elif node.elem_type == "fcall":
+        elif node.elem_type == "fcall":
             # eval it
+            # in v1 will be a inputi fcall
+            return self.do_inputi_fcall(node)
+            
+    def do_inputi_fcall(self, statement_node):
+        # in v1 must be a print call
+        if statement_node.get('name') == 'inputi':
+            # output the single param which is the prompt (if any)
+            if len(statement_node.get('args')) == 1:
+                InterpreterBase().output(str(self.evaluate_expression(statement_node.get('args')[0])))
+            # throw err if >1
+            # can guarantee the input will be a valid integer value so
+            # go from str -> int
+            user_input = InterpreterBase().get_input()
+            return int(user_input)
+        # throw err if not
+        # also its 0+ nodes
     
     # value of value node
     def get_value(self, val_node):
@@ -112,7 +135,14 @@ def main():
     print("The sum is ", sum, "!");
     }
     """
-    interpreter.run(p1)
+    p2 = """func main() { /* a function that computes the sum of 2 numbers */
+    first = inputi("enter a #: ");
+    second = 5;
+    sum = (first + second);
+    print("The sum is ", sum, "!");
+    }
+    """
+    interpreter.run(p2)
     
 if __name__ == "__main__":
     main()
