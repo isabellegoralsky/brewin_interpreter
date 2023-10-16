@@ -20,13 +20,13 @@ class Interpreter(InterpreterBase):
        
         # main func node = get main func node (ast)
         # is program node guaranteed to be first???
-        for n in ast:
-            if n.elem_type == "program":
-                prog_node = n
-                break
+        prog_node = ast.get(InterpreterBase.PROGRAM_DEF)
         
         # get single node in program function list -> main()
-        main_func_node = prog_node.dict['functions'][0]
+        # only one node so name will be main
+        # i dont think any args rn
+        main_func_node = prog_node.get('functions')[0].get(InterpreterBase.FUNC_DEF)
+        # ??? need this
 
         #run_func(main_func_node)
         run_func(main_func_node)
@@ -34,24 +34,27 @@ class Interpreter(InterpreterBase):
         # process nodes of the AST to run the program
     
     def run_func(func_node):
-        pass
-        # for each statement_node in func_node.statements:
-			# run_statement(statement_node)
+        # run statements in order that they appear in the program
+        # aka order of execution
+        for statement_node in func_node.get('statements'):
+			run_statement(statement_node)
 
     def run_statement(statement_node):
-        pass
-        # if is_assignment(statement_node):
-			# do_assignment(statement_node);
-		# else if is_func_call(statement_node):
-			# do_func_call(statement_node);
-		# ...
-
+        # look inside the statement nodes and figure out how to tell what they are
+        if statement_node.elem_type == "=": # assignment
+            do_assignment(statement_node)
+        elif statement_node.elem_type == InterpreterBase.FCALL_DEF: # function call
+            do_func_call(statement_node)
+# 76485
     def do_assignment(statement_node):
         pass
         # target_var_name = get_target_variable_name(statement_node)
 		# source_node = get_expression_node(statement_node)
 		# resulting_value = evaluate_expression(source_node)
 		# this.variable_name_to_value[target_var_name] = resulting_value
+
+    def do_func_call(statement_node):
+         pass
     
     def evaluate_expression(expression_node):
         pass
