@@ -1,5 +1,5 @@
 # exports Interpreter class
-from intbase import InterpreterBase
+from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
 
 class Interpreter(InterpreterBase):
@@ -26,7 +26,9 @@ class Interpreter(InterpreterBase):
         # only one node so name will be main
         # i dont think any args rn
         main_func_node = ast.get('functions')[0]
-        # ??? need this
+        if main_func_node.get('name') != 'main':
+            super().error(ErrorType.NAME_ERROR,"No main() function was found",)
+
 
         #run_func(main_func_node)
         self.run_func(main_func_node)
@@ -65,7 +67,9 @@ class Interpreter(InterpreterBase):
             out_str = ""
             for arg in statement_node.get('args'):
                 out_str += str(self.evaluate_expression(arg))
-            InterpreterBase().output(out_str)
+            super().output(out_str)
+        else:
+            super().error(ErrorType.NAME_ERROR,"print function only allowed",)
         # throw err if not
         # also its 0+ nodes
     
@@ -89,12 +93,16 @@ class Interpreter(InterpreterBase):
         if statement_node.get('name') == 'inputi':
             # output the single param which is the prompt (if any)
             if len(statement_node.get('args')) == 1:
-                InterpreterBase().output(str(self.evaluate_expression(statement_node.get('args')[0])))
+                super().output(str(self.evaluate_expression(statement_node.get('args')[0])))
+            elif len(statement_node.get('args')) > 1:
+                super().error(ErrorType.NAME_ERROR,"inputi function can only have 1 or 0 args",)
             # throw err if >1
             # can guarantee the input will be a valid integer value so
             # go from str -> int
             user_input = InterpreterBase().get_input()
             return int(user_input)
+        else:
+            super().error(ErrorType.NAME_ERROR,"inputi function only allowed",)
         # throw err if not
         # also its 0+ nodes
     
@@ -104,7 +112,10 @@ class Interpreter(InterpreterBase):
     
     # value of var node
     def get_value_of_variable(self, var_node):
-        return self.variable_name_to_value[var_node.get('name')]
+        if var_node.get('name') in self.variable_name_to_value:
+            return self.variable_name_to_value[var_node.get('name')]
+        else:
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
     
     # binary op + or - eval
     def evaluate_binary_operator(self, expression_node):
@@ -114,6 +125,10 @@ class Interpreter(InterpreterBase):
 
         op1 = self.evaluate_expression(op1)
         op2 = self.evaluate_expression(op2)
+        
+        if isinstance(op1,str) or isinstance(op2,str):
+            super().error(ErrorType.TYPE_ERROR,"Incompatible types for arithmetic operation",
+                          )
         # print("op1 ", op1, "op2", op2)
         if expression_node.elem_type == '+':
             return op1 + op2
@@ -126,3 +141,22 @@ class Interpreter(InterpreterBase):
 
 ## DELETEEE AT END
 ## open source testing ##
+# def main():
+# interpreter = Interpreter()
+# p1 = """func main() { /* a function that computes the sum of 2 numbers */
+# first = 2;
+# second = 5;
+# sum = (first + second);
+# print("The sum is ", sum, "!");  }"""
+# p2 = """func main() { /* a function that computes the sum of 2 numbers */ 
+# first = inputi("enter a #: ");
+# second = 5;
+# sum = (first + second);
+# print("The sum is ", sum, "!");  } """
+# p3 = """func main() {
+    # a = 5 + 10;
+    # print(a);  }"""
+    # interpreter.run(p3)
+    
+# if __name__ == "__main__":
+ #   main()
