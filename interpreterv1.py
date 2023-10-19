@@ -96,10 +96,11 @@ class Interpreter(InterpreterBase):
                 super().output(str(self.evaluate_expression(statement_node.get('args')[0])))
             elif len(statement_node.get('args')) > 1:
                 super().error(ErrorType.NAME_ERROR,"inputi function can only have 1 or 0 args",)
-            # throw err if >1
-            # can guarantee the input will be a valid integer value so
-            # go from str -> int
-            user_input = InterpreterBase().get_input()
+            
+            # guarantee that the input is a valid integer in String form
+            user_input = super().get_input()
+            if user_input == None:
+                super().error(ErrorType.FAULT_ERROR,"inputi function takes in an integer",)
             return int(user_input)
         else:
             super().error(ErrorType.NAME_ERROR,"inputi function only allowed",)
@@ -135,28 +136,6 @@ class Interpreter(InterpreterBase):
         else: # subtraction
             return op1 - op2
 
-          
-
-    # STARTING THESE BY THROWING NO ERRS
 
 ## DELETEEE AT END
 ## open source testing ##
-# def main():
-# interpreter = Interpreter()
-# p1 = """func main() { /* a function that computes the sum of 2 numbers */
-# first = 2;
-# second = 5;
-# sum = (first + second);
-# print("The sum is ", sum, "!");  }"""
-# p2 = """func main() { /* a function that computes the sum of 2 numbers */ 
-# first = inputi("enter a #: ");
-# second = 5;
-# sum = (first + second);
-# print("The sum is ", sum, "!");  } """
-# p3 = """func main() {
-    # a = 5 + 10;
-    # print(a);  }"""
-    # interpreter.run(p3)
-    
-# if __name__ == "__main__":
- #   main()
