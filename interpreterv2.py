@@ -17,11 +17,10 @@ class Interpreter(InterpreterBase):
         # main fucntion will have 1+ statements inside
         # assignment and printing are statements that are OK
         ast = parse_program(program)
-        self.variable_name_to_value = {} # need self???
+        #self.variable_name_to_value = {} # need self???
         # save for func defs
         self.functions = ast.get('functions')
         
-        print(ast)
         
         # main func node = get main func node (ast)
         # is program node guaranteed to be first???
@@ -38,6 +37,7 @@ class Interpreter(InterpreterBase):
 
 
         #run_func(main_func_node)
+        self.scopes = [{'name': 'main', 'vars_to_val': {}}] # main function uses global dict
         self.run_func(main_func_node)
 
         # process nodes of the AST to run the program
@@ -46,52 +46,42 @@ class Interpreter(InterpreterBase):
         # run statements in order that they appear in the program
         # aka order of execution
         for statement_node in func_node.get('statements'):
-            self.run_statement(statement_node, args)
+            self.run_statement(statement_node)
             #print(statement_node)
 
-    def run_statement(self, statement_node, args=[]):
+    def run_statement(self, statement_node):
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=":
             # assignment
-            self.do_assignment(statement_node, args) # DONE
+            self.do_assignment(statement_node) # DONE
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
             if statement_node.get('name') == 'print':
-                self.do_print_fcall(statement_node) # TODO args impl two
+                self.do_print_fcall(statement_node)
             else:
-                self.fcall(statement_node) # TODO args impl three
+                self.fcall(statement_node)
         elif statement_node.elem_type == InterpreterBase.IF_DEF:
             # elif if statement
-            self.do_if_statement(statement_node) # TODO args impl four
+            self.do_if_statement(statement_node)
         elif statement_node.elem_type == InterpreterBase.WHILE_DEF:
             # elif while loop
-            self.do_while_loop(statement_node) # TODO args impl 5
+            self.do_while_loop(statement_node)
         elif statement_node.elem_type == InterpreterBase.RETURN_DEF:
             # elif return statement
-            self.do_ret_statement(statement_node) # TODO args impl 6
+            self.do_ret_statement(statement_node)
 
-    def do_assignment(self, statement_node, args=[]):
-        for a in args:
-                print("balls ", a)
-        if args:
-            flag = False
-            for a in args:
-                if statement_node.get('name') == a.get('name'):
-                    flag = True
-                    target_var_name = "shadow" + statement_node.get('name')
-            if not flag:
-                target_var_name = statement_node.get('name')
-        else:
-            target_var_name = statement_node.get('name')
+    def do_assignment(self, statement_node):
+        target_var_name = statement_node.get('name')
         # in x = 2 + 10 this is x
         source_node = statement_node.get('expression')
         #print("target ", target_var_name, "expression ", source_node)
         # either expression like 2+10, value like 2, or var like x=y
         resulting_value = self.evaluate_expression(source_node)
         #print("result ", resulting_value)
-        self.variable_name_to_value[target_var_name] = resulting_value
+        l = len(self.scopes) - 1
+        self.scopes[l]['vars_to_val'][target_var_name] = resulting_value
 
-    def fcall(self, fcall):
+    def fcall(self, fcall): # TODO update
         # locate function in the function list
         flag = False
         for f in self.functions:
@@ -223,8 +213,10 @@ class Interpreter(InterpreterBase):
     
     # value of var node
     def get_value_of_variable(self, var_node):
-        if var_node.get('name') in self.variable_name_to_value:
-            return self.variable_name_to_value[var_node.get('name')]
+        l = len(self.scopes) - 1
+        vars = self.scopes[l]['vars_to_val']
+        if var_node.get('name') in vars:
+            return vars[var_node.get('name')]
         else:
             super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
     
