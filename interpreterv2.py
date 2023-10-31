@@ -1,6 +1,7 @@
 # exports Interpreter class VERSION 2.0
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
+import copy
 
 class Interpreter(InterpreterBase):
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -19,6 +20,8 @@ class Interpreter(InterpreterBase):
         self.variable_name_to_value = {} # need self???
         # save for func defs
         self.functions = ast.get('functions')
+        
+        print(ast)
         
         # main func node = get main func node (ast)
         # is program node guaranteed to be first???
@@ -39,36 +42,47 @@ class Interpreter(InterpreterBase):
 
         # process nodes of the AST to run the program
     
-    def run_func(self, func_node):
+    def run_func(self, func_node, args=[]):
         # run statements in order that they appear in the program
         # aka order of execution
         for statement_node in func_node.get('statements'):
-            self.run_statement(statement_node)
+            self.run_statement(statement_node, args)
             #print(statement_node)
 
-    def run_statement(self, statement_node):
+    def run_statement(self, statement_node, args=[]):
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=":
             # assignment
-            self.do_assignment(statement_node)
+            self.do_assignment(statement_node, args) # DONE
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
             if statement_node.get('name') == 'print':
-                self.do_print_fcall(statement_node)
+                self.do_print_fcall(statement_node) # TODO args impl two
             else:
-                self.fcall(statement_node)
+                self.fcall(statement_node) # TODO args impl three
         elif statement_node.elem_type == InterpreterBase.IF_DEF:
             # elif if statement
-            self.do_if_statement(statement_node)
+            self.do_if_statement(statement_node) # TODO args impl four
         elif statement_node.elem_type == InterpreterBase.WHILE_DEF:
             # elif while loop
-            self.do_while_loop(statement_node)
+            self.do_while_loop(statement_node) # TODO args impl 5
         elif statement_node.elem_type == InterpreterBase.RETURN_DEF:
             # elif return statement
-            self.do_ret_statement(statement_node)
+            self.do_ret_statement(statement_node) # TODO args impl 6
 
-    def do_assignment(self, statement_node):
-        target_var_name = statement_node.get('name')
+    def do_assignment(self, statement_node, args=[]):
+        for a in args:
+                print("balls ", a)
+        if args:
+            flag = False
+            for a in args:
+                if statement_node.get('name') == a.get('name'):
+                    flag = True
+                    target_var_name = "shadow" + statement_node.get('name')
+            if not flag:
+                target_var_name = statement_node.get('name')
+        else:
+            target_var_name = statement_node.get('name')
         # in x = 2 + 10 this is x
         source_node = statement_node.get('expression')
         #print("target ", target_var_name, "expression ", source_node)
@@ -85,10 +99,13 @@ class Interpreter(InterpreterBase):
             if f.get('name') == fcall.get('name') and len(f.get('args')) == len(fcall.get('args')):
                 flag = True
                 # add args to the vars and values list
+                # im thinking of creating a local vars list and adding them to thatprint("isabell")
                 for i in range(len(f.get('args'))):
-                    self.variable_name_to_value[f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
+                    self.variable_name_to_value["shadow" + f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
                 # run func
-                self.run_func(f)
+                self.run_func(f, f.get('args'))
+                for i in range(len(f.get('args'))):
+                    del self.variable_name_to_value["shadow" + f.get('args')[i].get('name')]
                 # want to remove args from the vars list
                 break
         if not flag:
@@ -98,7 +115,7 @@ class Interpreter(InterpreterBase):
     def do_print_fcall(self, statement_node):
         # in v1 must be a print call
         if statement_node.get('name') == 'print':
-            out_str = ""
+            outstr = ""
             for arg in statement_node.get('args'):
                 s = str(self.evaluate_expression(arg))
                 if s == "True":
@@ -106,8 +123,8 @@ class Interpreter(InterpreterBase):
                 elif s == "False":
                     outstr += "false"
                 else:
-                    out_str += s
-            super().output(out_str)
+                    outstr += s
+            super().output(outstr)
         else:
             super().error(ErrorType.NAME_ERROR,"print function only allowed",)
         # throw err if not
@@ -137,7 +154,7 @@ class Interpreter(InterpreterBase):
         if r == InterpreterBase.NIL_DEF:
             return None
         else:
-            return r
+            return copy.deepcopy(r)
     
     def evaluate_expression(self, node):
         if node.elem_type in {InterpreterBase.STRING_DEF, InterpreterBase.INT_DEF,
@@ -201,11 +218,7 @@ class Interpreter(InterpreterBase):
     def get_value(self, val_node):
         if val_node.elem_type == InterpreterBase.NIL_DEF:
             return None
-        elif val_node.elem_type == InterpreterBase.BOOL_DEF:
-            if val_node.get('val') == 'true':
-                return True
-            else:
-                return False
+        
         return val_node.get('val')
     
     # value of var node
@@ -220,11 +233,15 @@ class Interpreter(InterpreterBase):
         # dict holds op1 and op2
         op1 = expression_node.get('op1')
         op2 = expression_node.get('op2')
+        
+        #print("op1 ", op1)
+        #print("op2 ", op2)
 
         op1 = self.evaluate_expression(op1)
         op2 = self.evaluate_expression(op2)
         
-        if isinstance(op1,int) and isinstance(op2, int):
+        
+        if type(op1) is int and type(op2) is int:
             if expression_node.elem_type == '+':
                 return op1 + op2
             elif expression_node.elem_type == '-':
@@ -248,7 +265,7 @@ class Interpreter(InterpreterBase):
             else:
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for integer operation",
                           )
-        elif isinstance(op1,bool) and isinstance(op2, bool):
+        elif type(op1) is bool and type(op2) is bool:
             if expression_node.elem_type == '==':
                 return op1 == op2
             elif expression_node.elem_type == '||':
@@ -260,7 +277,7 @@ class Interpreter(InterpreterBase):
             else:
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for boolean comparison",
                           )
-        elif isinstance(op1, str) and isinstance(op2, str):
+        elif type(op1) is str and type(op2) is str:
             if expression_node.elem_type == '==':
                 return op1 == op2
             elif expression_node.elem_type == '!=':
@@ -273,7 +290,6 @@ class Interpreter(InterpreterBase):
         elif expression_node.elem_type == '==' or expression_node.elem_type == '!=':
             # comparison vals of diff types
             return False
-        
         else:
             super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",
                           )
@@ -297,3 +313,21 @@ class Interpreter(InterpreterBase):
 
 ## DELETEEE AT END
 ## open source testing ##
+
+def main():
+    inte = Interpreter()
+    p1 = """func foo(c) { /* formal parameter c shadows the c defined in main */
+                c = 30;   /* alters the formal parameter, not the c from main */
+            }
+
+            func main() {
+                c = 10;
+                foo(20);
+                print(c); /* prints 10 */
+            }"""
+ # print(true && true || true && false);
+                #print(true && true && true && false || false && true && true && true);
+    inte.run(p1)
+                
+if __name__ == "__main__":
+    main()
