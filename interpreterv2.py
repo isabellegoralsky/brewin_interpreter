@@ -38,37 +38,42 @@ class Interpreter(InterpreterBase):
 
         #run_func(main_func_node)
         self.scopes = [{'name': 'main', 'vars_to_val': {}}] # main function uses global dict
+        # process nodes of the AST to run the program
         self.run_func(main_func_node)
 
-        # process nodes of the AST to run the program
+        self.scopes.pop()  #remove last item (just clean up. not necessary.)
     
-    def run_func(self, func_node, args=[]):
+    def run_func(self, func_node):
         # run statements in order that they appear in the program
         # aka order of execution
         for statement_node in func_node.get('statements'):
-            self.run_statement(statement_node)
+            ret = self.run_statement(statement_node)
+            if ret is not None:
+                return ret
             #print(statement_node)
+        return None
 
     def run_statement(self, statement_node):
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=":
             # assignment
-            self.do_assignment(statement_node) # DONE
+            return self.do_assignment(statement_node) # DONE
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
             if statement_node.get('name') == 'print':
-                self.do_print_fcall(statement_node)
+                return self.do_print_fcall(statement_node)
             else:
-                self.fcall(statement_node)
+                return self.fcall(statement_node)
         elif statement_node.elem_type == InterpreterBase.IF_DEF:
             # elif if statement
-            self.do_if_statement(statement_node)
+            return self.do_if_statement(statement_node)
         elif statement_node.elem_type == InterpreterBase.WHILE_DEF:
             # elif while loop
-            self.do_while_loop(statement_node)
+            return self.do_while_loop(statement_node)
         elif statement_node.elem_type == InterpreterBase.RETURN_DEF:
             # elif return statement
-            self.do_ret_statement(statement_node)
+            #print(statement_node)
+            return self.do_ret_statement(statement_node)
 
     def do_assignment(self, statement_node):
         target_var_name = statement_node.get('name')
@@ -78,8 +83,24 @@ class Interpreter(InterpreterBase):
         # either expression like 2+10, value like 2, or var like x=y
         resulting_value = self.evaluate_expression(source_node)
         #print("result ", resulting_value)
-        l = len(self.scopes) - 1
-        self.scopes[l]['vars_to_val'][target_var_name] = resulting_value
+        
+        # if var name is in this function, set it
+        # if var name is in scope of other functions, set it
+        
+        flag = False
+        i = len(self.scopes) - 1
+        while i >= 0:
+            if target_var_name in self.scopes[i]['vars_to_val'].keys():
+                flag = True
+                self.scopes[i]['vars_to_val'][target_var_name] = resulting_value
+                break
+            i -= 1
+        
+        # else create it in this function
+        if not flag:
+            l = len(self.scopes) - 1
+            self.scopes[l]['vars_to_val'][target_var_name] = resulting_value
+        return None
 
     def fcall(self, fcall): # TODO update
         # locate function in the function list
@@ -88,16 +109,18 @@ class Interpreter(InterpreterBase):
             # run func and maybe later check args
             if f.get('name') == fcall.get('name') and len(f.get('args')) == len(fcall.get('args')):
                 flag = True
+                self.scopes.append({'name': f.get('name'), 'vars_to_val': {}})
                 # add args to the vars and values list
                 # im thinking of creating a local vars list and adding them to thatprint("isabell")
+                l = len(self.scopes) - 1
                 for i in range(len(f.get('args'))):
-                    self.variable_name_to_value["shadow" + f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
+                    self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
                 # run func
-                self.run_func(f, f.get('args'))
-                for i in range(len(f.get('args'))):
-                    del self.variable_name_to_value["shadow" + f.get('args')[i].get('name')]
-                # want to remove args from the vars list
-                break
+                fu = self.run_func(f)
+                
+                # want to remove scope
+                self.scopes.pop()
+                return fu
         if not flag:
             super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} was found",)
         # throw err
@@ -121,23 +144,47 @@ class Interpreter(InterpreterBase):
         # also its 0+ nodes
     
     def do_if_statement(self, statement_node):
+        self.scopes.append({'name': 'if', 'vars_to_val': {}})
         cond = self.evaluate_expression(statement_node.get('condition'))
         if not isinstance(cond, bool):
             super().error(ErrorType.TYPE_ERROR,"condition of if statement must be type bool",)
         if cond:
+            
+            print("Hello")
             for s in statement_node.get('statements'):
-                self.run_statement(s)
+                ret = self.run_statement(s)
+                if ret is not None:
+                    self.scopes.pop()
+                    return ret
+            self.scopes.pop()
+            return None
         elif statement_node.get('else_statements') is not None:
+            print("BALLS")
+            print(self.scopes[len(self.scopes)-3])
             for s in statement_node.get('else_statements'):
-                self.run_statement(s)
+                ret = self.run_statement(s)
+                if ret is not None:
+                    self.scopes.pop()
+                    return ret
+            self.scopes.pop()
+            return None
+        return None
     
     def do_while_loop(self, statement_node):
+        self.scopes.append({'name': 'while', 'vars_to_val': {}})
         cond = self.evaluate_expression(statement_node.get('condition'))
         if not isinstance(cond, bool):
             super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
-        while cond:
-            for s in statement_node.get('statements'):
-                self.run_statement(s)
+        #while cond:
+        for s in statement_node.get('statements'):
+            ret = self.run_statement(s)
+            if ret is not None:
+                self.scopes.pop()
+                return ret
+                
+        self.scopes.pop()
+        return None
+        
     
     def do_ret_statement(self, statement_node):
         r = self.evaluate_expression(statement_node.get('expression'))
@@ -212,13 +259,14 @@ class Interpreter(InterpreterBase):
         return val_node.get('val')
     
     # value of var node
-    def get_value_of_variable(self, var_node):
-        l = len(self.scopes) - 1
-        vars = self.scopes[l]['vars_to_val']
-        if var_node.get('name') in vars:
-            return vars[var_node.get('name')]
-        else:
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
+    def get_value_of_variable(self, var_node): # need to do this for the other ones too
+        i = len(self.scopes) - 1
+        while i >= 0:
+            if var_node.get('name') in self.scopes[i]['vars_to_val'].keys() :
+                return self.scopes[i]['vars_to_val'][var_node.get('name')]
+            i -= 1
+        
+        super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
     
     # binary ops, bool and arith
     def evaluate_binary_operator(self, expression_node):
@@ -226,11 +274,15 @@ class Interpreter(InterpreterBase):
         op1 = expression_node.get('op1')
         op2 = expression_node.get('op2')
         
-        #print("op1 ", op1)
-        #print("op2 ", op2)
+        #print("op1 expression node", op1)
+        #print("op2 expression node", op2)
 
         op1 = self.evaluate_expression(op1)
         op2 = self.evaluate_expression(op2)
+        
+        print("op1 evaled", op1)
+        print(expression_node.elem_type)
+        print("op2 evaled", op2)
         
         
         if type(op1) is int and type(op2) is int:
@@ -308,15 +360,46 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func foo(c) { /* formal parameter c shadows the c defined in main */
-                c = 30;   /* alters the formal parameter, not the c from main */
-            }
+    p1 = """func foo() {
+                i = 0;
+                while (i < 3) {
+                    j = 0;
+                    while (j < 3) {
+                        k = 0;
+                        while (k < 3) {
+                            if (i * j * k == 1) {
+                                return ans;
+                            } else {
+                                ans = ans + 1;
+                                k = k + 1;
+                            }
+                        }
+                        j = j + 1;
+                    }
+                    i = i + 1;
+                }
+                }
+
+func main() {
+  ans = 0;
+  print(foo());
+  print(ans);
+}"""
+            
+    p2="""func foo(a, c) {
+            print(a);
+            print(b);
+            a = 1;
+            b = 2;
+        }
 
             func main() {
-                c = 10;
-                foo(20);
-                print(c); /* prints 10 */
-            }"""
+            a = 10;
+            b = 20;
+            foo(100, 200);
+            print(a); 
+            print(b);
+        }"""
  # print(true && true || true && false);
                 #print(true && true && true && false || false && true && true && true);
     inte.run(p1)
