@@ -17,16 +17,20 @@ class Interpreter(InterpreterBase):
         # assignment and printing are statements that are OK
         ast = parse_program(program)
         self.variable_name_to_value = {} # need self???
+        # save for func defs
+        self.functions = ast.get('functions')
         
         # main func node = get main func node (ast)
         # is program node guaranteed to be first???
         #prog_node = ast.get(InterpreterBase.PROGRAM_DEF)
         
-        # get single node in program function list -> main()
-        # only one node so name will be main
-        # i dont think any args rn
-        main_func_node = ast.get('functions')[0]
-        if main_func_node.get('name') != 'main':
+        # get main function from functions list in AST
+        main_func_node = None
+        for f in self.functions:
+            if f.get('name') == 'main':
+                main_func_node = f
+                
+        if main_func_node is None:
             super().error(ErrorType.NAME_ERROR,"No main() function was found",)
 
 
@@ -49,7 +53,10 @@ class Interpreter(InterpreterBase):
             self.do_assignment(statement_node)
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
-            self.do_print_fcall(statement_node)
+            if statement_node.get('name') == 'print':
+                self.do_print_fcall(statement_node)
+            else:
+                self.fcall(statement_node)
         elif statement_node.elem_type == InterpreterBase.IF_DEF:
             # elif if statement
             self.do_if_statement(statement_node)
@@ -69,6 +76,24 @@ class Interpreter(InterpreterBase):
         resulting_value = self.evaluate_expression(source_node)
         #print("result ", resulting_value)
         self.variable_name_to_value[target_var_name] = resulting_value
+
+    def fcall(self, fcall):
+        # locate function in the function list
+        flag = False
+        for f in self.functions:
+            # run func and maybe later check args
+            if f.get('name') == fcall.get('name') and len(f.get('args')) == len(fcall.get('args')):
+                flag = True
+                # add args to the vars and values list
+                for i in range(len(f.get('args'))):
+                    self.variable_name_to_value[f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
+                # run func
+                self.run_func(f)
+                # want to remove args from the vars list
+                break
+        if not flag:
+            super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} was found",)
+        # throw err
 
     def do_print_fcall(self, statement_node):
         # in v1 must be a print call
@@ -108,7 +133,11 @@ class Interpreter(InterpreterBase):
                 self.run_statement(s)
     
     def do_ret_statement(self, statement_node):
-        return self.evaluate_expression(statement_node.get('expression')) # does this handle none??
+        r = self.evaluate_expression(statement_node.get('expression'))
+        if r == InterpreterBase.NIL_DEF:
+            return None
+        else:
+            return r
     
     def evaluate_expression(self, node):
         if node.elem_type in {InterpreterBase.STRING_DEF, InterpreterBase.INT_DEF,
@@ -124,7 +153,12 @@ class Interpreter(InterpreterBase):
         elif node.elem_type == "fcall":
             # eval it
             # SIWTCH TO HANDLE MORE THAN JUST INPUT I
-            return self.do_inputi_fcall(node)
+            if node.get('name') == 'inputi':
+                return self.do_inputi_fcall(node)
+            elif node.get('name') == 'inputs':
+                return self.do_inputs_fcall(node)
+            else:
+                return self.fcall(node)
         elif node.elem_type == InterpreterBase.NEG_DEF or node.elem_type == InterpreterBase.NOT_DEF:
             # unary operation
             return self.evaluate_unary_operator(node)
@@ -145,6 +179,21 @@ class Interpreter(InterpreterBase):
             return int(user_input)
         else:
             super().error(ErrorType.NAME_ERROR,"inputi function only allowed",)
+        # throw err if not
+        # also its 0+ nodes
+        
+    def do_inputs_fcall(self, statement_node):
+        # output the single param which is the prompt (if any)
+        if len(statement_node.get('args')) == 1:
+            super().output(str(self.evaluate_expression(statement_node.get('args')[0])))
+        elif len(statement_node.get('args')) > 1:
+            super().error(ErrorType.NAME_ERROR,"inputs function can only have 1 or 0 args",)
+            
+        # guarantee that the input is a valid integer in String form
+        user_input = super().get_input()
+        if user_input == None:
+            super().error(ErrorType.FAULT_ERROR,"inputs function takes in a string",)
+        return user_input
         # throw err if not
         # also its 0+ nodes
     
