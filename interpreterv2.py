@@ -57,7 +57,7 @@ class Interpreter(InterpreterBase):
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=":
             # assignment
-            return self.do_assignment(statement_node) # DONE
+            return self.do_assignment(statement_node)
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
             if statement_node.get('name') == 'print':
@@ -67,7 +67,7 @@ class Interpreter(InterpreterBase):
         elif statement_node.elem_type == InterpreterBase.IF_DEF:
             # elif if statement
             return self.do_if_statement(statement_node)
-        elif statement_node.elem_type == InterpreterBase.WHILE_DEF:
+        elif statement_node.elem_type == InterpreterBase.WHILE_DEF: # here
             # elif while loop
             return self.do_while_loop(statement_node)
         elif statement_node.elem_type == InterpreterBase.RETURN_DEF:
@@ -102,7 +102,7 @@ class Interpreter(InterpreterBase):
             self.scopes[l]['vars_to_val'][target_var_name] = resulting_value
         return None
 
-    def fcall(self, fcall): # TODO update
+    def fcall(self, fcall):
         # locate function in the function list
         flag = False
         for f in self.functions:
@@ -150,7 +150,7 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR,"condition of if statement must be type bool",)
         if cond:
             
-            print("Hello")
+            #print("Hello")
             for s in statement_node.get('statements'):
                 ret = self.run_statement(s)
                 if ret is not None:
@@ -159,8 +159,8 @@ class Interpreter(InterpreterBase):
             self.scopes.pop()
             return None
         elif statement_node.get('else_statements') is not None:
-            print("BALLS")
-            print(self.scopes[len(self.scopes)-3])
+            #print("BALLS")
+            #print(self.scopes[len(self.scopes)-3])
             for s in statement_node.get('else_statements'):
                 ret = self.run_statement(s)
                 if ret is not None:
@@ -173,14 +173,16 @@ class Interpreter(InterpreterBase):
     def do_while_loop(self, statement_node):
         self.scopes.append({'name': 'while', 'vars_to_val': {}})
         cond = self.evaluate_expression(statement_node.get('condition'))
-        if not isinstance(cond, bool):
+        if type(cond) is not bool:
             super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
         #while cond:
-        for s in statement_node.get('statements'):
-            ret = self.run_statement(s)
-            if ret is not None:
-                self.scopes.pop()
-                return ret
+        while cond:
+            for s in statement_node.get('statements'):
+                ret = self.run_statement(s)
+                if ret is not None:
+                    self.scopes.pop()
+                    return ret
+            cond = self.evaluate_expression(statement_node.get('condition'))
                 
         self.scopes.pop()
         return None
@@ -280,9 +282,9 @@ class Interpreter(InterpreterBase):
         op1 = self.evaluate_expression(op1)
         op2 = self.evaluate_expression(op2)
         
-        print("op1 evaled", op1)
-        print(expression_node.elem_type)
-        print("op2 evaled", op2)
+        #print("op1 evaled", op1)
+        #print(expression_node.elem_type)
+        #print("op2 evaled", op2)
         
         
         if type(op1) is int and type(op2) is int:
