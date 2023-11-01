@@ -50,6 +50,8 @@ class Interpreter(InterpreterBase):
             ret = self.run_statement(statement_node)
             if ret is not None:
                 return ret
+            if statement_node.elem_type == InterpreterBase.RETURN_DEF:
+                break
             #print(statement_node)
         return None
 
