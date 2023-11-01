@@ -340,9 +340,12 @@ class Interpreter(InterpreterBase):
                 return True
             else:
                 return False
-        elif expression_node.elem_type == '==' or expression_node.elem_type == '!=':
+        elif expression_node.elem_type == '==':
             # comparison vals of diff types
             return False
+        elif expression_node.elem_type == '!=':
+            # comparison vals of diff types
+            return True
         else:
             super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",
                           )
