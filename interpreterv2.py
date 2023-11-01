@@ -60,6 +60,7 @@ class Interpreter(InterpreterBase):
             return self.do_assignment(statement_node)
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
+            
             if statement_node.get('name') == 'print':
                 return self.do_print_fcall(statement_node)
             else:
@@ -122,7 +123,7 @@ class Interpreter(InterpreterBase):
                 self.scopes.pop()
                 return fu
         if not flag:
-            super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} was found",)
+            super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} wasn't found",)
         # throw err
 
     def do_print_fcall(self, statement_node):
@@ -130,13 +131,19 @@ class Interpreter(InterpreterBase):
         if statement_node.get('name') == 'print':
             outstr = ""
             for arg in statement_node.get('args'):
-                s = str(self.evaluate_expression(arg))
-                if s == "True":
-                    outstr += "true"
-                elif s == "False":
-                    outstr += "false"
+                s = self.evaluate_expression(arg)
+                if s is None:
+                    outstr += "nil"
                 else:
-                    outstr += s
+                    s = str(s)
+                    if s == "True":
+                        outstr += "true"
+                    elif s == "False":
+                        outstr += "false"
+                    else:
+                        outstr += s
+                    
+                
             super().output(outstr)
         else:
             super().error(ErrorType.NAME_ERROR,"print function only allowed",)
@@ -183,6 +190,8 @@ class Interpreter(InterpreterBase):
                     self.scopes.pop()
                     return ret
             cond = self.evaluate_expression(statement_node.get('condition'))
+            if type(cond) is not bool:
+                super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
                 
         self.scopes.pop()
         return None
@@ -215,6 +224,8 @@ class Interpreter(InterpreterBase):
                 return self.do_inputi_fcall(node)
             elif node.get('name') == 'inputs':
                 return self.do_inputs_fcall(node)
+            elif node.get('name') == 'print':
+                return self.do_print_fcall(node)
             else:
                 return self.fcall(node)
         elif node.elem_type == InterpreterBase.NEG_DEF or node.elem_type == InterpreterBase.NOT_DEF:
@@ -372,19 +383,9 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func foo() { 
- print("hello");
- /* no explicit return command */
-}
-
-func bar() {
-  print("world");
-  return;  /* no return value specified */
-}
-
-func main() {
-   val = nil;
-   if (foo() == val && bar() == nil) { print("this should print!"); }
+    p1 = """func main() {
+	k = print(0);
+	print(k);
 }"""
     inte.run(p1)
                 
