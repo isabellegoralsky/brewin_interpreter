@@ -189,11 +189,13 @@ class Interpreter(InterpreterBase):
         
     
     def do_ret_statement(self, statement_node):
-        r = self.evaluate_expression(statement_node.get('expression'))
-        if r == InterpreterBase.NIL_DEF:
-            return None
-        else:
-            return copy.deepcopy(r)
+        if statement_node.get('expression') is not None:
+            r = self.evaluate_expression(statement_node.get('expression'))
+            if r == InterpreterBase.NIL_DEF:
+                return None
+            else:
+                return copy.deepcopy(r)
+        return None
     
     def evaluate_expression(self, node):
         if node.elem_type in {InterpreterBase.STRING_DEF, InterpreterBase.INT_DEF,
@@ -333,6 +335,11 @@ class Interpreter(InterpreterBase):
             else:
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for string operations",
                           )
+        elif op1 is None and op2 is None:
+            if expression_node.elem_type == '==':
+                return True
+            else:
+                return False
         elif expression_node.elem_type == '==' or expression_node.elem_type == '!=':
             # comparison vals of diff types
             return False
@@ -362,48 +369,20 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func foo() {
-                i = 0;
-                while (i < 3) {
-                    j = 0;
-                    while (j < 3) {
-                        k = 0;
-                        while (k < 3) {
-                            if (i * j * k == 1) {
-                                return ans;
-                            } else {
-                                ans = ans + 1;
-                                k = k + 1;
-                            }
-                        }
-                        j = j + 1;
-                    }
-                    i = i + 1;
-                }
-                }
+    p1 = """func foo() { 
+ print("hello");
+ /* no explicit return command */
+}
+
+func bar() {
+  print("world");
+  return;  /* no return value specified */
+}
 
 func main() {
-  ans = 0;
-  print(foo());
-  print(ans);
+   val = nil;
+   if (foo() == val && bar() == nil) { print("this should print!"); }
 }"""
-            
-    p2="""func foo(a, c) {
-            print(a);
-            print(b);
-            a = 1;
-            b = 2;
-        }
-
-            func main() {
-            a = 10;
-            b = 20;
-            foo(100, 200);
-            print(a); 
-            print(b);
-        }"""
- # print(true && true || true && false);
-                #print(true && true && true && false || false && true && true && true);
     inte.run(p1)
                 
 if __name__ == "__main__":
