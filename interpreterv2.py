@@ -62,7 +62,6 @@ class Interpreter(InterpreterBase):
             return self.do_assignment(statement_node)
         elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
             # function call
-            
             if statement_node.get('name') == 'print':
                 return self.do_print_fcall(statement_node)
             else:
@@ -157,9 +156,8 @@ class Interpreter(InterpreterBase):
         cond = self.evaluate_expression(statement_node.get('condition'))
         if not isinstance(cond, bool):
             super().error(ErrorType.TYPE_ERROR,"condition of if statement must be type bool",)
+
         if cond:
-            
-            #print("Hello")
             for s in statement_node.get('statements'):
                 ret = self.run_statement(s)
                 if ret is not None:
@@ -177,25 +175,27 @@ class Interpreter(InterpreterBase):
                     return ret
             self.scopes.pop()
             return None
+        self.scopes.pop()
         return None
     
     def do_while_loop(self, statement_node):
-        self.scopes.append({'name': 'while', 'vars_to_val': {}})
         cond = self.evaluate_expression(statement_node.get('condition'))
         if type(cond) is not bool:
             super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
         #while cond:
         while cond:
+            self.scopes.append({'name': 'while', 'vars_to_val': {}})
             for s in statement_node.get('statements'):
                 ret = self.run_statement(s)
                 if ret is not None:
                     self.scopes.pop()
                     return ret
             cond = self.evaluate_expression(statement_node.get('condition'))
+            self.scopes.pop()
             if type(cond) is not bool:
                 super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
                 
-        self.scopes.pop()
+        
         return None
         
     
