@@ -1,395 +1,313 @@
-# exports Interpreter class VERSION 2.0
-from intbase import InterpreterBase, ErrorType
-from brewparse import parse_program
 import copy
+from enum import Enum
 
+from brewparse import parse_program
+from env_v2 import EnvironmentManager
+from intbase import InterpreterBase, ErrorType
+from type_valuev2 import Type, Value, create_value, get_printable
+
+
+class ExecStatus(Enum):
+    CONTINUE = 1
+    RETURN = 2
+
+
+# Main interpreter class
 class Interpreter(InterpreterBase):
+    # constants
+    NIL_VALUE = create_value(InterpreterBase.NIL_DEF)
+    TRUE_VALUE = create_value(InterpreterBase.TRUE_DEF)
+    BIN_OPS = {"+", "-", "*", "/", "==", "!=", ">", ">=", "<", "<=", "||", "&&"}
+
+    # methods
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
+        self.trace_output = trace_output
+        self.__setup_ops()
 
+    # run a program that's provided in a string
+    # usese the provided Parser found in brewparse.py to parse the program
+    # into an abstract syntax tree (ast)
     def run(self, program):
-        # program is a list of strs that represent a syntactically valid Brewin prog
-        # ex ['func main() { ', 'first = inputi("Enter a first #: ");', …, '}']
-        # each item in list is a different line
-
-        # use parser to parse the source code into AST
-        # will always start with main function
-        # main fucntion will have 1+ statements inside
-        # assignment and printing are statements that are OK
         ast = parse_program(program)
-        #self.variable_name_to_value = {} # need self???
-        # save for func defs
-        self.functions = ast.get('functions')
-        
-        
-        # main func node = get main func node (ast)
-        # is program node guaranteed to be first???
-        #prog_node = ast.get(InterpreterBase.PROGRAM_DEF)
-        
-        # get main function from functions list in AST
-        main_func_node = None
-        for f in self.functions:
-            if f.get('name') == 'main':
-                main_func_node = f
-                
-        if main_func_node is None:
-            super().error(ErrorType.NAME_ERROR,"No main() function was found",)
+        self.__set_up_function_table(ast)
+        self.env = EnvironmentManager()
+        main_func = self.__get_func_by_name("main", 0)
+        self.__run_statements(main_func.get("statements"))
 
+    def __set_up_function_table(self, ast):
+        self.func_name_to_ast = {}
+        for func_def in ast.get("functions"):
+            func_name = func_def.get("name")
+            num_params = len(func_def.get("args"))
+            if func_name not in self.func_name_to_ast:
+                self.func_name_to_ast[func_name] = {}
+            self.func_name_to_ast[func_name][num_params] = func_def
 
-        #run_func(main_func_node)
-        self.scopes = [{'name': 'main', 'vars_to_val': {}}] # main function uses global dict
-        # process nodes of the AST to run the program
-        self.run_func(main_func_node)
+    def __get_func_by_name(self, name, num_params):
+        if name not in self.func_name_to_ast:
+            super().error(ErrorType.NAME_ERROR, f"Function {name} not found")
+        candidate_funcs = self.func_name_to_ast[name]
+        if num_params not in candidate_funcs:
+            super().error(
+                ErrorType.NAME_ERROR,
+                f"Function {name} taking {num_params} params not found",
+            )
+        return candidate_funcs[num_params]
 
-        self.scopes.pop()  #remove last item (just clean up. not necessary.)
-    
-    def run_func(self, func_node):
-        # run statements in order that they appear in the program
-        # aka order of execution
-        for statement_node in func_node.get('statements'):
-            ret = self.run_statement(statement_node)
-            if ret is not None:
-                return ret
-            if statement_node.elem_type == InterpreterBase.RETURN_DEF:
-                break
-            #print(statement_node)
-        return None
+    def __run_statements(self, statements):
+        self.env.push()
+        for statement in statements:
+            if self.trace_output:
+                print(statement)
+            status = ExecStatus.CONTINUE
+            if statement.elem_type == InterpreterBase.FCALL_DEF:
+                self.__call_func(statement)
+            elif statement.elem_type == "=":
+                self.__assign(statement)
+            elif statement.elem_type == InterpreterBase.RETURN_DEF:
+                status, return_val = self.__do_return(statement)
+            elif statement.elem_type == Interpreter.IF_DEF:
+                status, return_val = self.__do_if(statement)
+            elif statement.elem_type == Interpreter.WHILE_DEF:
+                status, return_val = self.__do_while(statement)
 
-    def run_statement(self, statement_node):
-        # look inside the statement nodes and figure out how to tell what they are
-        if statement_node.elem_type == "=":
-            # assignment
-            return self.do_assignment(statement_node)
-        elif statement_node.elem_type == InterpreterBase.FCALL_DEF:
-            # function call
-            if statement_node.get('name') == 'print':
-                return self.do_print_fcall(statement_node)
-            else:
-                return self.fcall(statement_node)
-        elif statement_node.elem_type == InterpreterBase.IF_DEF:
-            # elif if statement
-            return self.do_if_statement(statement_node)
-        elif statement_node.elem_type == InterpreterBase.WHILE_DEF: # here
-            # elif while loop
-            return self.do_while_loop(statement_node)
-        elif statement_node.elem_type == InterpreterBase.RETURN_DEF:
-            # elif return statement
-            #print(statement_node)
-            return self.do_ret_statement(statement_node)
+            if status == ExecStatus.RETURN:
+                self.env.pop()
+                return (status, return_val)
 
-    def do_assignment(self, statement_node):
-        target_var_name = statement_node.get('name')
-        # in x = 2 + 10 this is x
-        source_node = statement_node.get('expression')
-        #print("target ", target_var_name, "expression ", source_node)
-        # either expression like 2+10, value like 2, or var like x=y
-        resulting_value = self.evaluate_expression(source_node)
-        #print("result ", resulting_value)
-        
-        # if var name is in this function, set it
-        # if var name is in scope of other functions, set it
-        
-        flag = False
-        i = len(self.scopes) - 1
-        while i >= 0:
-            if target_var_name in self.scopes[i]['vars_to_val'].keys():
-                flag = True
-                self.scopes[i]['vars_to_val'][target_var_name] = resulting_value
-                break
-            i -= 1
-        
-        # else create it in this function
-        if not flag:
-            l = len(self.scopes) - 1
-            self.scopes[l]['vars_to_val'][target_var_name] = resulting_value
-        return None
+        self.env.pop()
+        return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
-    def fcall(self, fcall):
-        # locate function in the function list
-        flag = False
-        for f in self.functions:
-            # run func and maybe later check args
-            if f.get('name') == fcall.get('name') and len(f.get('args')) == len(fcall.get('args')):
-                flag = True
-                self.scopes.append({'name': f.get('name'), 'vars_to_val': {}})
-                # add args to the vars and values list
-                # im thinking of creating a local vars list and adding them to thatprint("isabell")
-                l = len(self.scopes) - 1
-                for i in range(len(f.get('args'))):
-                    self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
-                # run func
-                fu = self.run_func(f)
-                
-                # want to remove scope
-                self.scopes.pop()
-                return fu
-        if not flag:
-            super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} wasn't found",)
-        # throw err
+    def __call_func(self, call_node):
+        func_name = call_node.get("name")
+        if func_name == "print":
+            return self.__call_print(call_node)
+        if func_name == "inputi":
+            return self.__call_input(call_node)
+        if func_name == "inputs":
+            return self.__call_input(call_node)
 
-    def do_print_fcall(self, statement_node):
-        # in v1 must be a print call
-        if statement_node.get('name') == 'print':
-            outstr = ""
-            for arg in statement_node.get('args'):
-                s = self.evaluate_expression(arg)
-                if s is None:
-                    outstr += "nil"
-                else:
-                    s = str(s)
-                    if s == "True":
-                        outstr += "true"
-                    elif s == "False":
-                        outstr += "false"
-                    else:
-                        outstr += s
-                    
-                
-            super().output(outstr)
-        else:
-            super().error(ErrorType.NAME_ERROR,"print function only allowed",)
-        # throw err if not
-        # also its 0+ nodes
-    
-    def do_if_statement(self, statement_node):
-        self.scopes.append({'name': 'if', 'vars_to_val': {}})
-        cond = self.evaluate_expression(statement_node.get('condition'))
-        if not isinstance(cond, bool):
-            super().error(ErrorType.TYPE_ERROR,"condition of if statement must be type bool",)
+        actual_args = call_node.get("args")
+        func_ast = self.__get_func_by_name(func_name, len(actual_args))
+        formal_args = func_ast.get("args")
+        if len(actual_args) != len(formal_args):
+            super().error(
+                ErrorType.NAME_ERROR,
+                f"Function {func_ast.get('name')} with {len(actual_args)} args not found",
+            )
+        self.env.push()
+        for formal_ast, actual_ast in zip(formal_args, actual_args):
+            result = copy.deepcopy(self.__eval_expr(actual_ast))
+            arg_name = formal_ast.get("name")
+            self.env.create(arg_name, result)
+        _, return_val = self.__run_statements(func_ast.get("statements"))
+        self.env.pop()
+        return return_val
 
-        if cond:
-            for s in statement_node.get('statements'):
-                ret = self.run_statement(s)
-                if ret is not None:
-                    self.scopes.pop()
-                    return ret
-            self.scopes.pop()
-            return None
-        elif statement_node.get('else_statements') is not None:
-            #print("BALLS")
-            #print(self.scopes[len(self.scopes)-3])
-            for s in statement_node.get('else_statements'):
-                ret = self.run_statement(s)
-                if ret is not None:
-                    self.scopes.pop()
-                    return ret
-            self.scopes.pop()
-            return None
-        self.scopes.pop()
-        return None
-    
-    def do_while_loop(self, statement_node):
-        cond = self.evaluate_expression(statement_node.get('condition'))
-        if type(cond) is not bool:
-            super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
-        #while cond:
-        while cond:
-            self.scopes.append({'name': 'while', 'vars_to_val': {}})
-            for s in statement_node.get('statements'):
-                ret = self.run_statement(s)
-                if ret is not None:
-                    self.scopes.pop()
-                    return ret
-            cond = self.evaluate_expression(statement_node.get('condition'))
-            self.scopes.pop()
-            if type(cond) is not bool:
-                super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
-                
-        
-        return None
-        
-    
-    def do_ret_statement(self, statement_node):
-        if statement_node.get('expression') is not None:
-            r = self.evaluate_expression(statement_node.get('expression'))
-            if r == InterpreterBase.NIL_DEF:
-                return None
-            else:
-                return copy.deepcopy(r)
-        return None
-    
-    def evaluate_expression(self, node):
-        if node.elem_type in {InterpreterBase.STRING_DEF, InterpreterBase.INT_DEF,
-                              InterpreterBase.BOOL_DEF, InterpreterBase.NIL_DEF}:
-            # value node
-            return self.get_value(node)
-        elif node.elem_type == InterpreterBase.VAR_DEF:
-            # variable node
-            return self.get_value_of_variable(node)
-        elif node.elem_type in {'+','-','*','/','<','>','<=','>=','!=', '==', '||', '&&'}:
-            # expression node representing binary operation
-            return self.evaluate_binary_operator(node)
-        elif node.elem_type == "fcall":
-            # eval it
-            # SIWTCH TO HANDLE MORE THAN JUST INPUT I
-            if node.get('name') == 'inputi':
-                return self.do_inputi_fcall(node)
-            elif node.get('name') == 'inputs':
-                return self.do_inputs_fcall(node)
-            elif node.get('name') == 'print':
-                return self.do_print_fcall(node)
-            else:
-                return self.fcall(node)
-        elif node.elem_type == InterpreterBase.NEG_DEF or node.elem_type == InterpreterBase.NOT_DEF:
-            # unary operation
-            return self.evaluate_unary_operator(node)
-            
-    def do_inputi_fcall(self, statement_node):
-        # in v1 must be a print call
-        if statement_node.get('name') == 'inputi':
-            # output the single param which is the prompt (if any)
-            if len(statement_node.get('args')) == 1:
-                super().output(str(self.evaluate_expression(statement_node.get('args')[0])))
-            elif len(statement_node.get('args')) > 1:
-                super().error(ErrorType.NAME_ERROR,"inputi function can only have 1 or 0 args",)
-            
-            # guarantee that the input is a valid integer in String form
-            user_input = super().get_input()
-            if user_input == None:
-                super().error(ErrorType.FAULT_ERROR,"inputi function takes in an integer",)
-            return int(user_input)
-        else:
-            super().error(ErrorType.NAME_ERROR,"inputi function only allowed",)
-        # throw err if not
-        # also its 0+ nodes
-        
-    def do_inputs_fcall(self, statement_node):
-        # output the single param which is the prompt (if any)
-        if len(statement_node.get('args')) == 1:
-            super().output(str(self.evaluate_expression(statement_node.get('args')[0])))
-        elif len(statement_node.get('args')) > 1:
-            super().error(ErrorType.NAME_ERROR,"inputs function can only have 1 or 0 args",)
-            
-        # guarantee that the input is a valid integer in String form
-        user_input = super().get_input()
-        if user_input == None:
-            super().error(ErrorType.FAULT_ERROR,"inputs function takes in a string",)
-        return user_input
-        # throw err if not
-        # also its 0+ nodes
-    
-    # value of value node
-    def get_value(self, val_node):
-        if val_node.elem_type == InterpreterBase.NIL_DEF:
-            return None
-        
-        return val_node.get('val')
-    
-    # value of var node
-    def get_value_of_variable(self, var_node): # need to do this for the other ones too
-        i = len(self.scopes) - 1
-        while i >= 0:
-            if var_node.get('name') in self.scopes[i]['vars_to_val'].keys() :
-                return self.scopes[i]['vars_to_val'][var_node.get('name')]
-            i -= 1
-        
-        super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
-    
-    # binary ops, bool and arith
-    def evaluate_binary_operator(self, expression_node):
-        # dict holds op1 and op2
-        op1 = expression_node.get('op1')
-        op2 = expression_node.get('op2')
-        
-        #print("op1 expression node", op1)
-        #print("op2 expression node", op2)
+    def __call_print(self, call_ast):
+        output = ""
+        for arg in call_ast.get("args"):
+            result = self.__eval_expr(arg)  # result is a Value object
+            output = output + get_printable(result)
+        super().output(output)
+        return Interpreter.NIL_VALUE
 
-        op1 = self.evaluate_expression(op1)
-        op2 = self.evaluate_expression(op2)
-        
-        #print("op1 evaled", op1)
-        #print(expression_node.elem_type)
-        #print("op2 evaled", op2)
-        
-        
-        if type(op1) is int and type(op2) is int:
-            if expression_node.elem_type == '+':
-                return op1 + op2
-            elif expression_node.elem_type == '-':
-                return op1 - op2
-            elif expression_node.elem_type == '*':
-                return op1 * op2
-            elif expression_node.elem_type == '/':
-                return op1 // op2
-            elif expression_node.elem_type == '==':
-                return op1 == op2
-            elif expression_node.elem_type == '<':
-                return op1 < op2
-            elif expression_node.elem_type == '>':
-                return op1 > op2
-            elif expression_node.elem_type == '<=':
-                return op1 <= op2
-            elif expression_node.elem_type == '>=':
-                return op1 >= op2
-            elif expression_node.elem_type == '!=':
-                return op1 != op2
-            else:
-                super().error(ErrorType.TYPE_ERROR,"Incompatible types for integer operation",
-                          )
-        elif type(op1) is bool and type(op2) is bool:
-            if expression_node.elem_type == '==':
-                return op1 == op2
-            elif expression_node.elem_type == '||':
-                return op1 or op2
-            elif expression_node.elem_type == '&&':
-                return op1 and op2
-            elif expression_node.elem_type == '!=':
-                return op1 != op2
-            else:
-                super().error(ErrorType.TYPE_ERROR,"Incompatible types for boolean comparison",
-                          )
-        elif type(op1) is str and type(op2) is str:
-            if expression_node.elem_type == '==':
-                return op1 == op2
-            elif expression_node.elem_type == '!=':
-                return op1 != op2
-            elif expression_node.elem_type == '+':
-                return op1 + op2
-            else:
-                super().error(ErrorType.TYPE_ERROR,"Incompatible types for string operations",
-                          )
-        elif op1 is None and op2 is None:
-            if expression_node.elem_type == '==':
-                return True
-            else:
-                return False
-        elif expression_node.elem_type == '==':
-            # comparison vals of diff types
-            return False
-        elif expression_node.elem_type == '!=':
-            # comparison vals of diff types
+    def __call_input(self, call_ast):
+        args = call_ast.get("args")
+        if args is not None and len(args) == 1:
+            result = self.__eval_expr(args[0])
+            super().output(get_printable(result))
+        elif args is not None and len(args) > 1:
+            super().error(
+                ErrorType.NAME_ERROR, "No inputi() function that takes > 1 parameter"
+            )
+        inp = super().get_input()
+        if call_ast.get("name") == "inputi":
+            return Value(Type.INT, int(inp))
+        if call_ast.get("name") == "inputs":
+            return Value(Type.STRING, inp)
+
+    def __assign(self, assign_ast):
+        var_name = assign_ast.get("name")
+        value_obj = self.__eval_expr(assign_ast.get("expression"))
+        self.env.set(var_name, value_obj)
+
+    def __eval_expr(self, expr_ast):
+        # print("here expr")
+        # print("type: " + str(expr_ast.elem_type))
+        if expr_ast.elem_type == InterpreterBase.NIL_DEF:
+            # print("getting as nil")
+            return Interpreter.NIL_VALUE
+        if expr_ast.elem_type == InterpreterBase.INT_DEF:
+            return Value(Type.INT, expr_ast.get("val"))
+        if expr_ast.elem_type == InterpreterBase.STRING_DEF:
+            # print("getting as str")
+            return Value(Type.STRING, expr_ast.get("val"))
+        if expr_ast.elem_type == InterpreterBase.BOOL_DEF:
+            return Value(Type.BOOL, expr_ast.get("val"))
+        if expr_ast.elem_type == InterpreterBase.VAR_DEF:
+            var_name = expr_ast.get("name")
+            val = self.env.get(var_name)
+            if val is None:
+                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+            return val
+        if expr_ast.elem_type == InterpreterBase.FCALL_DEF:
+            return self.__call_func(expr_ast)
+        if expr_ast.elem_type in Interpreter.BIN_OPS:
+            return self.__eval_op(expr_ast)
+        if expr_ast.elem_type == Interpreter.NEG_DEF:
+            return self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x)
+        if expr_ast.elem_type == Interpreter.NOT_DEF:
+            return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+
+    def __eval_op(self, arith_ast):
+        left_value_obj = self.__eval_expr(arith_ast.get("op1"))
+        right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+        if not self.__compatible_types(
+            arith_ast.elem_type, left_value_obj, right_value_obj
+        ):
+            super().error(
+                ErrorType.TYPE_ERROR,
+                f"Incompatible types for {arith_ast.elem_type} operation",
+            )
+        if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
+            super().error(
+                ErrorType.TYPE_ERROR,
+                f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
+            )
+        f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
+        # print("here eval")
+        # print(arith_ast)
+        # print("evaluating " + str(left_value_obj.type()) + " " + str(arith_ast.elem_type))
+        # print("obj left: " + str(left_value_obj.value()))
+        return f(left_value_obj, right_value_obj)
+
+    def __compatible_types(self, oper, obj1, obj2):
+        # DOCUMENT: allow comparisons ==/!= of anything against anything
+        if oper in ["==", "!="]:
             return True
+        return obj1.type() == obj2.type()
+
+    def __eval_unary(self, arith_ast, t, f):
+        value_obj = self.__eval_expr(arith_ast.get("op1"))
+        if value_obj.type() != t:
+            super().error(
+                ErrorType.TYPE_ERROR,
+                f"Incompatible type for {arith_ast.elem_type} operation",
+            )
+        return Value(t, f(value_obj.value()))
+
+    def __setup_ops(self):
+        self.op_to_lambda = {}
+        # set up operations on integers
+        self.op_to_lambda[Type.INT] = {}
+        self.op_to_lambda[Type.INT]["+"] = lambda x, y: Value(
+            x.type(), x.value() + y.value()
+        )
+        self.op_to_lambda[Type.INT]["-"] = lambda x, y: Value(
+            x.type(), x.value() - y.value()
+        )
+        self.op_to_lambda[Type.INT]["*"] = lambda x, y: Value(
+            x.type(), x.value() * y.value()
+        )
+        self.op_to_lambda[Type.INT]["/"] = lambda x, y: Value(
+            x.type(), x.value() // y.value()
+        )
+        self.op_to_lambda[Type.INT]["=="] = lambda x, y: Value(
+            Type.BOOL, x.type() == y.type() and x.value() == y.value()
+        )
+        self.op_to_lambda[Type.INT]["!="] = lambda x, y: Value(
+            Type.BOOL, x.type() != y.type() or x.value() != y.value()
+        )
+        self.op_to_lambda[Type.INT]["<"] = lambda x, y: Value(
+            Type.BOOL, x.value() < y.value()
+        )
+        self.op_to_lambda[Type.INT]["<="] = lambda x, y: Value(
+            Type.BOOL, x.value() <= y.value()
+        )
+        self.op_to_lambda[Type.INT][">"] = lambda x, y: Value(
+            Type.BOOL, x.value() > y.value()
+        )
+        self.op_to_lambda[Type.INT][">="] = lambda x, y: Value(
+            Type.BOOL, x.value() >= y.value()
+        )
+        #  set up operations on strings
+        self.op_to_lambda[Type.STRING] = {}
+        self.op_to_lambda[Type.STRING]["+"] = lambda x, y: Value(
+            x.type(), x.value() + y.value()
+        )
+        self.op_to_lambda[Type.STRING]["=="] = lambda x, y: Value(
+            Type.BOOL, x.value() == y.value()
+        )
+        self.op_to_lambda[Type.STRING]["!="] = lambda x, y: Value(
+            Type.BOOL, x.value() != y.value()
+        )
+        #  set up operations on bools
+        self.op_to_lambda[Type.BOOL] = {}
+        self.op_to_lambda[Type.BOOL]["&&"] = lambda x, y: Value(
+            x.type(), x.value() and y.value()
+        )
+        self.op_to_lambda[Type.BOOL]["||"] = lambda x, y: Value(
+            x.type(), x.value() or y.value()
+        )
+        self.op_to_lambda[Type.BOOL]["=="] = lambda x, y: Value(
+            Type.BOOL, x.type() == y.type() and x.value() == y.value()
+        )
+        self.op_to_lambda[Type.BOOL]["!="] = lambda x, y: Value(
+            Type.BOOL, x.type() != y.type() or x.value() != y.value()
+        )
+
+        #  set up operations on nil
+        self.op_to_lambda[Type.NIL] = {}
+        self.op_to_lambda[Type.NIL]["=="] = lambda x, y: Value(
+            Type.BOOL, x.type() == y.type() and x.value() == y.value()
+        )
+        self.op_to_lambda[Type.NIL]["!="] = lambda x, y: Value(
+            Type.BOOL, x.type() != y.type() or x.value() != y.value()
+        )
+
+    def __do_if(self, if_ast):
+        cond_ast = if_ast.get("condition")
+        result = self.__eval_expr(cond_ast)
+        if result.type() != Type.BOOL:
+            super().error(
+                ErrorType.TYPE_ERROR,
+                "Incompatible type for if condition",
+            )
+        if result.value():
+            statements = if_ast.get("statements")
+            status, return_val = self.__run_statements(statements)
+            return (status, return_val)
         else:
-            super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",
-                          )
-        
-    # unary op neg or ! eval
-    def evaluate_unary_operator(self, expression_node):
-        # dict holds op1
-        op1 = self.evaluate_expression(expression_node.get('op1'))
-        
-        if expression_node.elem_type == InterpreterBase.NEG_DEF:
-            if not isinstance(op1,int):
-                super().error(ErrorType.TYPE_ERROR,"Incompatible types for arithmetic negation",
-                            )
-            return -op1
-        else:
-            if not isinstance(op1,bool):
-                super().error(ErrorType.TYPE_ERROR,"Incompatible types for boolean negation",
-                            )
-            return not op1
+            else_statements = if_ast.get("else_statements")
+            if else_statements is not None:
+                status, return_val = self.__run_statements(else_statements)
+                return (status, return_val)
 
+        return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
-## DELETEEE AT END
-## open source testing ##
+    def __do_while(self, while_ast):
+        cond_ast = while_ast.get("condition")
+        run_while = Interpreter.TRUE_VALUE
+        while run_while.value():
+            run_while = self.__eval_expr(cond_ast)
+            if run_while.type() != Type.BOOL:
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    "Incompatible type for while condition",
+                )
+            if run_while.value():
+                statements = while_ast.get("statements")
+                status, return_val = self.__run_statements(statements)
+                if status == ExecStatus.RETURN:
+                    return status, return_val
 
-def main():
-    inte = Interpreter()
-    p1 = """func main() {
-	k = print(0);
-	print(k);
-}"""
-    inte.run(p1)
-                
-if __name__ == "__main__":
-    main()
+        return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
+
+    def __do_return(self, return_ast):
+        expr_ast = return_ast.get("expression")
+        if expr_ast is None:
+            return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
+        value_obj = copy.deepcopy(self.__eval_expr(expr_ast))
+        return (ExecStatus.RETURN, value_obj)
