@@ -335,12 +335,16 @@ class Interpreter(InterpreterBase):
         
         if type(op1) is int and type(op2) is int:
             if expression_node.elem_type == '+':
+                # here
                 return op1 + op2
             elif expression_node.elem_type == '-':
+                # here
                 return op1 - op2
             elif expression_node.elem_type == '*':
+                # here
                 return op1 * op2
             elif expression_node.elem_type == '/':
+                # here
                 return op1 // op2
             elif expression_node.elem_type == '==':
                 return op1 == op2
@@ -376,6 +380,46 @@ class Interpreter(InterpreterBase):
                 return op1 and op2
             elif expression_node.elem_type == '!=':
                 return op1 != op2
+            elif expression_node.elem_type == '+':
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 + op2
+            elif expression_node.elem_type == '-':
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 - op2
+            elif expression_node.elem_type == '*':
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 * op2
+            elif expression_node.elem_type == '/':
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 // op2
             else:
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for boolean comparison",
                           )
@@ -394,6 +438,67 @@ class Interpreter(InterpreterBase):
                 return True
             else:
                 return False
+        elif expression_node.elem_type == '+':
+            if type (op1) is int and type (op2) is bool:
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 + op2
+            elif type(op1) is bool and type (op2) is int:
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                return op1 + op2
+            else:
+                super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",
+                          )
+        elif expression_node.elem_type == '-':
+            if type (op1) is int and type (op2) is bool:
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 - op2
+            elif type(op1) is bool and type (op2) is int:
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                return op1 - op2
+            else:
+                super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",)
+        elif expression_node.elem_type == '*':
+            if type (op1) is int and type (op2) is bool:
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 * op2
+            elif type(op1) is bool and type (op2) is int:
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                return op1 * op2
+            else:
+                super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",)
+        elif expression_node.elem_type == '/':
+            if type (op1) is int and type (op2) is bool:
+                if op2:
+                    op2 = 1
+                else:
+                    op2 = 0
+                return op1 // op2
+            elif type(op1) is bool and type (op2) is int:
+                if op1:
+                    op1 = 1
+                else:
+                    op1 = 0
+                return op1 // op2
+            else:
+                super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",)
         elif expression_node.elem_type == '&&':
             if type (op1) is int and type (op2) is bool:
                 # compare int and bool
@@ -546,14 +651,16 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func foo(ref x) {
-  return x;   /* returns a deep copy of the value x that refers to */
-}
+    p1 = """
 
-func main() {
-  a = -5;
-    if (true == a) { print("This will print!"); }
-}"""
+    func main() {
+    x = true + 6; /* x is 7 */
+    print(x);
+y = false * 10; /* y is zero */ 
+print(y);
+z = true + true; /* z is 2 */
+print(z);
+    }"""
     inte.run(p1)
                 
 if __name__ == "__main__":
