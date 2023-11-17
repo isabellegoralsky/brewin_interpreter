@@ -368,10 +368,68 @@ class Interpreter(InterpreterBase):
                 return False
         elif expression_node.elem_type == '==':
             # comparison vals of diff types
-            return False
+            if type (op1) is int and type (op2) is bool:
+                # compare int and bool
+                if op2 and op1 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op2 and op1 == 0:
+                    # op2 is True and op1 is Zero
+                    return False
+                elif op1 == 0:
+                    #op2 false and op1 zero
+                    return True
+                else:
+                    # op2 false and op1 non zero
+                    return False
+            elif type(op1) is bool and type (op2) is int:
+                # compare int and bool
+                if op1 and op2 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op1 and op2 == 0:
+                    # op2 is True and op1 is Zero
+                    return False
+                elif op2 == 0:
+                    #op2 false and op1 zero
+                    return True
+                else:
+                    # op2 false and op1 non zero
+                    return False   
+            else:
+                return False
         elif expression_node.elem_type == '!=':
             # comparison vals of diff types
-            return True
+            if type (op1) is int and type (op2) is bool:
+                # compare int and bool
+                if op2 and op1 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op2 and op1 == 0:
+                    # op2 is True and op1 is Zero
+                    return False
+                elif op1 == 0:
+                    #op2 false and op1 zero
+                    return True
+                else:
+                    # op2 false and op1 non zero
+                    return False
+            elif type(op1) is bool and type (op2) is int:
+                # compare int and bool
+                if op1 and op2 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op1 and op2 == 0:
+                    # op2 is True and op1 is Zero
+                    return False
+                elif op2 == 0:
+                    #op2 false and op1 zero
+                    return True
+                else:
+                    # op2 false and op1 non zero
+                    return False 
+            else:
+                return True
         else:
             super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",
                           )
@@ -398,19 +456,13 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func bar(ref c) {
-  c = c + 1;
-}
-
-func foo(ref a) {
-  a = a + 10;
-  bar(a);
+    p1 = """func foo(ref x) {
+  return x;   /* returns a deep copy of the value x that refers to */
 }
 
 func main() {
-  b = 5;
-  foo(b);
-  print(b);
+  a = -5;
+    if (true == a) { print("This will print!"); }
 }"""
     inte.run(p1)
                 
