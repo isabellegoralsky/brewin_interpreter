@@ -142,7 +142,7 @@ class Interpreter(InterpreterBase):
         while i>=0:
             formal_func = self.scopes[i]['vars_to_val'][fcall.get('name')].getVal() # value of variable passed in as function
 
-            if formal_func.elem_type == 'func' and len(formal_func.get('args')) == len(fcall.get('args')):
+            if type(formal_func) is Element and formal_func.elem_type == 'func' and len(formal_func.get('args')) == len(fcall.get('args')):
                 # run the function
                 self.scopes.append({'name': fcall.get('name'), 'vars_to_val': {}})
 
@@ -158,6 +158,8 @@ class Interpreter(InterpreterBase):
                 # want to remove scope
                 self.scopes.pop()
                 return fu
+            else:
+                super().error(ErrorType.TYPE_ERROR,f"Function {fcall.get('name')} isn't a function",)
             i -=1;
         
         super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} wasn't found",)
@@ -702,19 +704,16 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func foo() {
-  print("hello world!");
+    p1 = """func bar(a) {
+  return a * 3;
 }
 
 func main() {
-  if (foo == main) { print("wait what?"); }
-  x = foo;
-  if (x == foo) { print("yup"); }
-  y = main;
-  if (x != y) { print("that's better!"); }
-  if (x != 5) { print("that's good too"); }
-  if (x != nil) { print("it's not nil"); }
-}"""
+  f = bar;
+  x = f(10);  /* calls the bar function through variable f */
+  print(x);   /* prints 30 */
+}
+"""
     inte.run(p1)
                 
 if __name__ == "__main__":
