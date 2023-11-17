@@ -7,7 +7,7 @@ class Val:
     def __init__(self, v):
         self.env = {'val':v}
         
-    def getVal(self, key):
+    def getVal(self):
         return self.env['val']
     
     def setVal(self, v):
