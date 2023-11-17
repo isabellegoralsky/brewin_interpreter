@@ -104,14 +104,14 @@ class Interpreter(InterpreterBase):
         while i >= 0:
             if target_var_name in self.scopes[i]['vars_to_val'].keys():
                 flag = True
-                self.scopes[i]['vars_to_val'][target_var_name] = resulting_value
+                self.scopes[i]['vars_to_val'][target_var_name].setVal(resulting_value)
                 break
             i -= 1
         
         # else create it in this function
         if not flag:
             l = len(self.scopes) - 1
-            self.scopes[l]['vars_to_val'][target_var_name] = resulting_value
+            self.scopes[l]['vars_to_val'][target_var_name] = Val(resulting_value)
         return None
 
     def fcall(self, fcall):
