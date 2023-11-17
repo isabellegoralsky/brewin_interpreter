@@ -167,9 +167,15 @@ class Interpreter(InterpreterBase):
     def do_if_statement(self, statement_node):
         self.scopes.append({'name': 'if', 'vars_to_val': {}})
         cond = self.evaluate_expression(statement_node.get('condition'))
-        if not isinstance(cond, bool):
-            super().error(ErrorType.TYPE_ERROR,"condition of if statement must be type bool",)
-
+        if type(cond) is not bool and type(cond) is not int:
+            super().error(ErrorType.TYPE_ERROR,"condition of if statement must be type bool or int",)
+            
+        if type(cond) is int:
+            if cond == 0:
+                cond = False
+            else:
+                cond = True
+            
         if cond:
             for s in statement_node.get('statements'):
                 ret = self.run_statement(s)
@@ -193,9 +199,15 @@ class Interpreter(InterpreterBase):
     
     def do_while_loop(self, statement_node):
         cond = self.evaluate_expression(statement_node.get('condition'))
-        if type(cond) is not bool:
-            super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
-        #while cond:
+        if type(cond) is not bool and type(cond) is not int:
+            super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool or int",)
+            
+        if type(cond) is int:
+            if cond == 0:
+                cond = False
+            else:
+                cond = True
+
         while cond:
             self.scopes.append({'name': 'while', 'vars_to_val': {}})
             for s in statement_node.get('statements'):
@@ -205,8 +217,14 @@ class Interpreter(InterpreterBase):
                     return ret
             cond = self.evaluate_expression(statement_node.get('condition'))
             self.scopes.pop()
-            if type(cond) is not bool:
-                super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool",)
+            if type(cond) is not bool and type(cond) is not int:
+                super().error(ErrorType.TYPE_ERROR,"condition of while loop must be type bool or int",)
+            
+            if type(cond) is int:
+                if cond == 0:
+                    cond = False
+                else:
+                    cond = True
                 
         
         return None
@@ -336,6 +354,16 @@ class Interpreter(InterpreterBase):
                 return op1 >= op2
             elif expression_node.elem_type == '!=':
                 return op1 != op2
+            elif expression_node.elem_type == '&&':
+                if op1 != 0 and op2 != 0:
+                    return True
+                else:
+                    return False
+            elif expression_node.elem_type == '||':
+                if op1 != 0 or op2 != 0:
+                    return True
+                else:
+                    return False
             else:
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for integer operation",
                           )
@@ -364,6 +392,62 @@ class Interpreter(InterpreterBase):
         elif op1 is None and op2 is None:
             if expression_node.elem_type == '==':
                 return True
+            else:
+                return False
+        elif expression_node.elem_type == '&&':
+            if type (op1) is int and type (op2) is bool:
+                # compare int and bool
+                if op2 and op1 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op2 and op1 == 0:
+                    # op2 is True and op1 is Zero
+                    return False
+                elif op1 == 0:
+                    #op2 false
+                    return False
+            elif type(op1) is bool and type (op2) is int:
+                # compare int and bool
+                if op1 and op2 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op1 and op2 == 0:
+                    # op2 is True and op1 is Zero
+                    return False
+                elif op2 == 0:
+                    #op2 false
+                    return False 
+            else:
+                return False
+        elif expression_node.elem_type == '||':
+            if type (op1) is int and type (op2) is bool:
+                # compare int and bool
+                if op2 and op1 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op2 and op1 == 0:
+                    # op2 is True and op1 is Zero
+                    return True
+                elif op1 == 0:
+                    #op2 false and op1 zero
+                    return False
+                else:
+                    # op2 false and op1 non zero
+                    return True
+            elif type(op1) is bool and type (op2) is int:
+                # compare int and bool
+                if op1 and op2 != 0:
+                    # op2 is True and op1 is non Zero
+                    return True
+                elif op1 and op2 == 0:
+                    # op2 is True and op1 is Zero
+                    return True
+                elif op2 == 0:
+                    #op2 false and op1 zero
+                    return False
+                else:
+                    # op2 false and op1 non zero
+                    return True   
             else:
                 return False
         elif expression_node.elem_type == '==':
@@ -444,11 +528,17 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for arithmetic negation",
                             )
             return -op1
-        else:
-            if not isinstance(op1,bool):
+        else: # boolean negative
+            if type(op1) is bool:
+                return not op1
+            elif type(op1) is int:
+                if op1 == 0:
+                    return True
+                else:
+                    return False
+            else:
                 super().error(ErrorType.TYPE_ERROR,"Incompatible types for boolean negation",
                             )
-            return not op1
 
 
 ## DELETEEE AT END
