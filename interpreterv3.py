@@ -67,7 +67,6 @@ class Interpreter(InterpreterBase):
         return None
 
     def run_statement(self, statement_node):
-        print("my statement node: ", statement_node)
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=":
             # assignment
@@ -142,7 +141,6 @@ class Interpreter(InterpreterBase):
         i = len(self.scopes) - 1
         while i>=0:
             formal_func = self.scopes[i]['vars_to_val'][fcall.get('name')].getVal() # value of variable passed in as function
-            print("my formal def ", formal_func)
 
             if type(formal_func) is Element and formal_func.elem_type == 'func' and len(formal_func.get('args')) == len(fcall.get('args')):
                 # run the function
@@ -153,7 +151,10 @@ class Interpreter(InterpreterBase):
                     if formal_func.get('args')[k].elem_type == 'refarg':
                         self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
                     else:
-                        self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                        if fcall.get('args')[k].elem_type == 'var':
+                            self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                        else:
+                            self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = Val(fcall.get('args')[k].get('val'))
                 # run func
                 fu = self.run_func(formal_func)
                 
@@ -161,8 +162,36 @@ class Interpreter(InterpreterBase):
                 self.scopes.pop()
                 return fu
             if type(formal_func) is Element and formal_func.elem_type == 'lambda' and len(formal_func.get('args')) == len(fcall.get('args')):
-                # TODO
-                super().error(ErrorType.TYPE_ERROR,f"LAMBDA {fcall.get('name')} NEEDS IMPL",)
+                print("my formal def :", formal_func)
+                # lambda: args: [arg: name: a], statements: [fcall: name: print, args: [*: op1: [var: name: a], op2: [var: name: b]]], closures: {'b': <__main__.Val object at 0x1006947d0>}
+                print("my lambda :", fcall)
+                # fcall: name: x, args: [int: val: 20]
+                self.scopes.append({'name': fcall.get('name'), 'vars_to_val': {}})
+                
+                # check closures. add these vars to the scoped environment
+                l = len(self.scopes) - 1
+                for key,val in formal_func.get('closures').items(): # key is var name and val is Val obj
+                    # TODO: as long as the var name != name of an arg
+                    self.scopes[l]['vars_to_val'][key] = val
+                
+                # check args and do the same as above
+                for k in range(len(formal_func.get('args'))):
+                    print("formal arg: ", formal_func.get('args')[k])
+                    print("input: ", fcall.get('args')[k].elem_type)
+                    if formal_func.get('args')[k].elem_type == 'refarg':
+                        self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                    else:
+                        if fcall.get('args')[k].elem_type == 'var':
+                            self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                        else:
+                            # input is a primitive
+                            self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = Val(fcall.get('args')[k].get('val'))
+                # run the func
+                fu = self.run_func(formal_func)
+                
+                # remove scope
+                self.scopes.pop()
+                return fu
             else:
                 super().error(ErrorType.TYPE_ERROR,f"Function {fcall.get('name')} isn't a function",)
             i -=1;
@@ -298,6 +327,17 @@ class Interpreter(InterpreterBase):
             return self.evaluate_unary_operator(node)
          
     def create_lambda(self, lambda_exp):
+        
+        # need to create a closure of these vars
+        # create a new key called closures with a dict of all vars and their vals
+        i = 0
+        lambda_exp.dict['closures'] = {}
+        while i < len(self.scopes):
+            for key,val in self.scopes[i]['vars_to_val'].items():
+                # making a copy
+                lambda_exp.dict['closures'][key] = Val(val.getVal())
+            i += 1
+        
         return lambda_exp
             
     def do_inputi_fcall(self, statement_node):
