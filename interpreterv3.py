@@ -625,7 +625,7 @@ class Interpreter(InterpreterBase):
                     #op2 false
                     return False 
             else:
-                return False
+                super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",)
         elif expression_node.elem_type == '||':
             if type (op1) is int and type (op2) is bool:
                 # compare int and bool
@@ -656,7 +656,7 @@ class Interpreter(InterpreterBase):
                     # op2 false and op1 non zero
                     return True   
             else:
-                return False
+               super().error(ErrorType.TYPE_ERROR,"Incompatible types for binary operation",)
         elif expression_node.elem_type == '==':
             # comparison vals of diff types
             if type (op1) is int and type (op2) is bool:
@@ -689,9 +689,18 @@ class Interpreter(InterpreterBase):
                     return False   
             elif type(op1) is Element and type(op2) is Element:
                 # need function comparison
-                if op1.elem_type == 'func' and op2.elem_type == 'func':
-                    if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements'):
-                        return True
+                if op1.elem_type == 'func':
+                    if op2.elem_type == 'func':
+                        if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements'):
+                            return True
+                    else:
+                        return False
+                elif op1.elem_type == 'lambda':
+                    if op2.elem_type == 'lambda':
+                        if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements') and op1.get('closures') == op2.get('closures'):
+                            return True
+                    else:
+                        return False
                 return False
             else:
                 return False
@@ -711,7 +720,7 @@ class Interpreter(InterpreterBase):
                 else:
                     # op2 false and op1 non zero
                     return False
-            elif type(op1) is bool and type (op2) is int:
+            elif type(op1) is bool and type(op2) is int:
                 # compare int and bool
                 if op1 and op2 != 0:
                     # op2 is True and op1 is non Zero
@@ -727,9 +736,14 @@ class Interpreter(InterpreterBase):
                     return False 
             elif type(op1) is Element and type(op2) is Element:
                 # need function comparison
-                if op1.elem_type == 'func' and op2.elem_type == 'func':
-                    if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements'):
-                        return False
+                if op1.elem_type == 'func':
+                    if op2.elem_type == 'func':
+                        if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements'):
+                            return False
+                elif op1.elem_type == 'lambda':
+                    if op2.elem_type == 'lambda':
+                        if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements') and op1.get('closures') == op2.get('closures'):
+                            return False
                 return True
             else:
                 return True
@@ -765,20 +779,18 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func foo() {
-    print("hi");
-}
-
-func foo(a) {
-    print(a);
-}
-
-func bar(f) {
-    foo(10);
+    p1 = """func foo(f1, ref f2) {
+  f1();  /* prints 1 */
+  f2();  /* prints 1 */
 }
 
 func main() {
-  bar(foo);
+  x = 0;
+  lam1 = lambda() { x = x + 1; print(x); };
+  lam2 = lambda() { x = x + 1; print(x); };
+  foo(lam1, lam2);
+  lam1();  /* prints 1 */
+  lam2();  /* prints 2 */
 }"""
     inte.run(p1)
                 
