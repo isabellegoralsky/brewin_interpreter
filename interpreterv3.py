@@ -1,6 +1,7 @@
 # exports Interpreter class VERSION 2.0
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
+from element import Element
 import copy
 
 class Val:
@@ -115,12 +116,11 @@ class Interpreter(InterpreterBase):
         return None
 
     def fcall(self, fcall):
+        
         # locate function in the function list
-        flag = False
         for f in self.functions:
             # run func and maybe later check args
             if f.get('name') == fcall.get('name') and len(f.get('args')) == len(fcall.get('args')):
-                flag = True
                 self.scopes.append({'name': f.get('name'), 'vars_to_val': {}})
                 # add args to the vars and values list
                 # im thinking of creating a local vars list and adding them to thatprint("isabell")
@@ -136,8 +136,31 @@ class Interpreter(InterpreterBase):
                 # want to remove scope
                 self.scopes.pop()
                 return fu
-        if not flag:
-            super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} wasn't found",)
+        
+        # check for func in var
+        i = len(self.scopes) - 1
+        while i>=0:
+            formal_func = self.scopes[i]['vars_to_val'][fcall.get('name')].getVal() # value of variable passed in as function
+
+            if formal_func.elem_type == 'func' and len(formal_func.get('args')) == len(fcall.get('args')):
+                # run the function
+                self.scopes.append({'name': fcall.get('name'), 'vars_to_val': {}})
+
+                l = len(self.scopes) - 1
+                for k in range(len(formal_func.get('args'))):
+                    if formal_func.get('args')[k].elem_type == 'refarg':
+                        self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                    else:
+                        self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                # run func
+                fu = self.run_func(formal_func)
+                
+                # want to remove scope
+                self.scopes.pop()
+                return fu
+            i -=1;
+        
+        super().error(ErrorType.NAME_ERROR,f"Function {fcall.get('name')} wasn't found",)
         # throw err
 
     def do_print_fcall(self, statement_node):
@@ -261,6 +284,8 @@ class Interpreter(InterpreterBase):
                 return self.do_print_fcall(node)
             else:
                 return self.fcall(node)
+        elif node.elem_type == InterpreterBase.LAMBDA_DEF:
+            pass
         elif node.elem_type == InterpreterBase.NEG_DEF or node.elem_type == InterpreterBase.NOT_DEF:
             # unary operation
             return self.evaluate_unary_operator(node)
@@ -313,6 +338,20 @@ class Interpreter(InterpreterBase):
             if var_node.get('name') in self.scopes[i]['vars_to_val'].keys() :
                 return self.scopes[i]['vars_to_val'][var_node.get('name')].getVal()
             i -= 1
+        
+        count = 0
+        func = None
+        for f in self.functions:
+            if f.get('name') == var_node.get('name'):
+                count += 1
+                func = f
+        
+        if func is not None:
+            if count == 1:
+                return func
+            else:
+                super().error(ErrorType.NAME_ERROR, f"Function var name {var_node.get('name')} is ambiguous",)
+            
         
         super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
     
@@ -585,6 +624,12 @@ class Interpreter(InterpreterBase):
                 else:
                     # op2 false and op1 non zero
                     return False   
+            elif type(op1) is Element and type(op2) is Element:
+                # need function comparison
+                if op1.elem_type == 'func' and op2.elem_type == 'func':
+                    if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements'):
+                        return True
+                return False
             else:
                 return False
         elif expression_node.elem_type == '!=':
@@ -617,6 +662,12 @@ class Interpreter(InterpreterBase):
                 else:
                     # op2 false and op1 non zero
                     return False 
+            elif type(op1) is Element and type(op2) is Element:
+                # need function comparison
+                if op1.elem_type == 'func' and op2.elem_type == 'func':
+                    if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements'):
+                        return False
+                return True
             else:
                 return True
         else:
@@ -651,16 +702,19 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """
+    p1 = """func foo() {
+  print("hello world!");
+}
 
-    func main() {
-    x = true + 6; /* x is 7 */
-    print(x);
-y = false * 10; /* y is zero */ 
-print(y);
-z = true + true; /* z is 2 */
-print(z);
-    }"""
+func main() {
+  if (foo == main) { print("wait what?"); }
+  x = foo;
+  if (x == foo) { print("yup"); }
+  y = main;
+  if (x != y) { print("that's better!"); }
+  if (x != 5) { print("that's good too"); }
+  if (x != nil) { print("it's not nil"); }
+}"""
     inte.run(p1)
                 
 if __name__ == "__main__":
