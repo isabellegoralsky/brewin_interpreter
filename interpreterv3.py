@@ -67,6 +67,7 @@ class Interpreter(InterpreterBase):
         return None
 
     def run_statement(self, statement_node):
+        print("my statement node: ", statement_node)
         # look inside the statement nodes and figure out how to tell what they are
         if statement_node.elem_type == "=":
             # assignment
@@ -141,6 +142,7 @@ class Interpreter(InterpreterBase):
         i = len(self.scopes) - 1
         while i>=0:
             formal_func = self.scopes[i]['vars_to_val'][fcall.get('name')].getVal() # value of variable passed in as function
+            print("my formal def ", formal_func)
 
             if type(formal_func) is Element and formal_func.elem_type == 'func' and len(formal_func.get('args')) == len(fcall.get('args')):
                 # run the function
@@ -158,6 +160,9 @@ class Interpreter(InterpreterBase):
                 # want to remove scope
                 self.scopes.pop()
                 return fu
+            if type(formal_func) is Element and formal_func.elem_type == 'lambda' and len(formal_func.get('args')) == len(fcall.get('args')):
+                # TODO
+                super().error(ErrorType.TYPE_ERROR,f"LAMBDA {fcall.get('name')} NEEDS IMPL",)
             else:
                 super().error(ErrorType.TYPE_ERROR,f"Function {fcall.get('name')} isn't a function",)
             i -=1;
@@ -287,10 +292,13 @@ class Interpreter(InterpreterBase):
             else:
                 return self.fcall(node)
         elif node.elem_type == InterpreterBase.LAMBDA_DEF:
-            pass
+            return self.create_lambda(node)
         elif node.elem_type == InterpreterBase.NEG_DEF or node.elem_type == InterpreterBase.NOT_DEF:
             # unary operation
             return self.evaluate_unary_operator(node)
+         
+    def create_lambda(self, lambda_exp):
+        return lambda_exp
             
     def do_inputi_fcall(self, statement_node):
         # in v1 must be a print call
@@ -704,16 +712,17 @@ class Interpreter(InterpreterBase):
 
 def main():
     inte = Interpreter()
-    p1 = """func bar(a) {
-  return a * 3;
+    p1 = """func foo() {
+  b = 5;
+  f = lambda(a) { print(a*b); };   /* captures b = 5 */
+
+  return f;
 }
 
 func main() {
-  f = bar;
-  x = f(10);  /* calls the bar function through variable f */
-  print(x);   /* prints 30 */
-}
-"""
+  x = foo();
+  x(20);   /* prints 100, the call to the lambda has access to b = 5 */
+}"""
     inte.run(p1)
                 
 if __name__ == "__main__":
