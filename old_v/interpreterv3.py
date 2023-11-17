@@ -290,7 +290,7 @@ class Interpreter(InterpreterBase):
         i = len(self.scopes) - 1
         while i >= 0:
             if var_node.get('name') in self.scopes[i]['vars_to_val'].keys() :
-                return self.scopes[i]['vars_to_val'][var_node.get('name')]
+                return self.scopes[i]['vars_to_val'][var_node.get('name')].getVal()
             i -= 1
         
         super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
