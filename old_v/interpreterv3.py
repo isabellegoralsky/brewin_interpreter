@@ -126,7 +126,11 @@ class Interpreter(InterpreterBase):
                 # im thinking of creating a local vars list and adding them to thatprint("isabell")
                 l = len(self.scopes) - 1
                 for i in range(len(f.get('args'))):
-                    self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
+                    if f.get('args')[i].elem_type == 'refarg':
+                        # pass by ref TODO
+                    else:
+                        # pass by val TODO
+                        #self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = self.evaluate_expression(fcall.get('args')[i])
                 # run func
                 fu = self.run_func(f)
                 
