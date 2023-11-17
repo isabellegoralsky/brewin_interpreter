@@ -129,7 +129,14 @@ class Interpreter(InterpreterBase):
                     if f.get('args')[i].elem_type == 'refarg':
                         self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[i].get('name')])
                     else:
-                        self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[i].get('name')])
+                        if fcall.get('args')[i].elem_type == 'var':
+                            if fcall.get('args')[i].get('name') in self.scopes[l-1]['vars_to_val']:
+                                self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[i].get('name')])
+                            else:
+                                super().error(ErrorType.NAME_ERROR,f"Arg {fcall.get('name')} isn't a function",)
+                        else:
+                            self.scopes[l]['vars_to_val'][f.get('args')[i].get('name')] = Val(fcall.get('args')[i].get('val'))
+                            
                 # run func
                 fu = self.run_func(f)
                 
@@ -152,7 +159,10 @@ class Interpreter(InterpreterBase):
                         self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
                     else:
                         if fcall.get('args')[k].elem_type == 'var':
-                            self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                            if fcall.get('args')[k].get('name') in self.scopes[l-1]['vars_to_val']:
+                                self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                            else:
+                                super().error(ErrorType.NAME_ERROR,f"Arg {fcall.get('name')} isn't a function",)
                         else:
                             self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = Val(fcall.get('args')[k].get('val'))
                 # run func
@@ -162,9 +172,9 @@ class Interpreter(InterpreterBase):
                 self.scopes.pop()
                 return fu
             if type(formal_func) is Element and formal_func.elem_type == 'lambda' and len(formal_func.get('args')) == len(fcall.get('args')):
-                print("my formal def :", formal_func)
+                
                 # lambda: args: [arg: name: a], statements: [fcall: name: print, args: [*: op1: [var: name: a], op2: [var: name: b]]], closures: {'b': <__main__.Val object at 0x1006947d0>}
-                print("my lambda :", fcall)
+        
                 # fcall: name: x, args: [int: val: 20]
                 self.scopes.append({'name': fcall.get('name'), 'vars_to_val': {}})
                 
@@ -182,7 +192,10 @@ class Interpreter(InterpreterBase):
                         self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
                     else:
                         if fcall.get('args')[k].elem_type == 'var':
-                            self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                            if fcall.get('args')[k].get('name') in self.scopes[l-1]['vars_to_val']:
+                                self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
+                            else:
+                                super().error(ErrorType.NAME_ERROR,f"Arg {fcall.get('name')} isn't a function",)
                         else:
                             # input is a primitive
                             self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = Val(fcall.get('args')[k].get('val'))
@@ -753,15 +766,19 @@ class Interpreter(InterpreterBase):
 def main():
     inte = Interpreter()
     p1 = """func foo() {
-  b = 5;
-  f = lambda(a) { print(a*b); };   /* captures b = 5 */
+    print("hi");
+}
 
-  return f;
+func foo(a) {
+    print(a);
+}
+
+func bar(f) {
+    foo(10);
 }
 
 func main() {
-  x = foo();
-  x(20);   /* prints 100, the call to the lambda has access to b = 5 */
+  bar(foo);
 }"""
     inte.run(p1)
                 
