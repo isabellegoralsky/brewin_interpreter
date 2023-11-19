@@ -187,8 +187,8 @@ class Interpreter(InterpreterBase):
                 
                 # check args and do the same as above
                 for k in range(len(formal_func.get('args'))):
-                    print("formal arg: ", formal_func.get('args')[k])
-                    print("input: ", fcall.get('args')[k].elem_type)
+                    #"formal arg: ", formal_func.get('args')[k])
+                    #print("input: ", fcall.get('args')[k].elem_type)
                     if formal_func.get('args')[k].elem_type == 'refarg':
                         self.scopes[l]['vars_to_val'][formal_func.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][fcall.get('args')[k].get('name')])
                     else:
@@ -258,7 +258,6 @@ class Interpreter(InterpreterBase):
             self.scopes.pop()
             return None
         elif statement_node.get('else_statements') is not None:
-            #print("BALLS")
             #print(self.scopes[len(self.scopes)-3])
             for s in statement_node.get('else_statements'):
                 ret = self.run_statement(s)
@@ -778,22 +777,22 @@ class Interpreter(InterpreterBase):
 ## DELETEEE AT END
 ## open source testing ##
 
-def main():
-    inte = Interpreter()
-    p1 = """func foo(f1, ref f2) {
-  f1();  /* prints 1 */
-  f2();  /* prints 1 */
-}
+# def main():
+#     inte = Interpreter()
+#     p1 = """func foo(f1, ref f2) {
+#   f1();  /* prints 1 */
+#   f2();  /* prints 1 */
+# }
 
-func main() {
-  x = 0;
-  lam1 = lambda() { x = x + 1; print(x); };
-  lam2 = lambda() { x = x + 1; print(x); };
-  foo(lam1, lam2);
-  lam1();  /* prints 1 */
-  lam2();  /* prints 2 */
-}"""
-    inte.run(p1)
+# func main() {
+#   x = 0;
+#   lam1 = lambda() { x = x + 1; print(x); };
+#   lam2 = lambda() { x = x + 1; print(x); };
+#   foo(lam1, lam2);
+#   lam1();  /* prints 1 */
+#   lam2();  /* prints 2 */
+# }"""
+#     inte.run(p1)
                 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
