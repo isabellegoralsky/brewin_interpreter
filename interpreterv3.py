@@ -179,10 +179,11 @@ class Interpreter(InterpreterBase):
                 self.scopes.append({'name': fcall.get('name'), 'vars_to_val': {}})
                 
                 # check closures. add these vars to the scoped environment
+                # ISSUE HERE ############
                 l = len(self.scopes) - 1
                 for key,val in formal_func.get('closures').items(): # key is var name and val is Val obj
-                    # TODO: as long as the var name != name of an arg
                     self.scopes[l]['vars_to_val'][key] = val
+                #########################
                 
                 # check args and do the same as above
                 for k in range(len(formal_func.get('args'))):
