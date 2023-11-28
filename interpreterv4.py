@@ -94,11 +94,47 @@ class Interpreter(InterpreterBase):
         source_node = statement_node.get('expression')
         #print("target ", target_var_name, "expression ", source_node)
         # either expression like 2+10, value like 2, or var like x=y
+        
+        # what about a.x = @
+        if source_node.elem_type == InterpreterBase.OBJ_DEF: # @
+            # create obj with name and fields empty
+            flag = False
+            i = len(self.scopes) - 1
+            while i >= 0:
+                if target_var_name in self.scopes[i]['vars_to_val'].keys():
+                    flag = True
+                    self.scopes[i]['vars_to_val'][target_var_name].setVal({'fields':{}})
+                    break
+                i -= 1
+            
+            # else create it in this function
+            if not flag:
+                l = len(self.scopes) - 1
+                self.scopes[l]['vars_to_val'][target_var_name] = Val({'fields':{}})
+            return None
+        
         resulting_value = self.evaluate_expression(source_node)
         #print("result ", resulting_value)
         
         # if var name is in this function, set it
         # if var name is in scope of other functions, set it
+        
+        if '.' in target_var_name:
+            # setting a field
+            names = target_var_name.split('.')
+            target_var_name = names[0]
+            field_name = names[1]
+            
+            i = len(self.scopes) - 1
+            while i >= 0:
+                if target_var_name in self.scopes[i]['vars_to_val'].keys():
+                    self.scopes[i]['vars_to_val'][target_var_name].getVal()['fields'][field_name] = Val(resulting_value)
+                    break
+                i -= 1
+            
+            #return err cuz var doesn't exist
+            return None
+            
         
         flag = False
         i = len(self.scopes) - 1
@@ -396,16 +432,47 @@ class Interpreter(InterpreterBase):
     
     # value of var node
     def get_value_of_variable(self, var_node): # need to do this for the other ones too
+
+        var_name = var_node.get('name')
+        
+        if '.' in var_name:
+            # setting a field
+            names = var_name.split('.')
+            var_name = names[0]
+            field_name = names[1]
+            
+            i = len(self.scopes) - 1
+            while i >= 0:
+                if var_name in self.scopes[i]['vars_to_val'].keys():
+                    if field_name in self.scopes[i]['vars_to_val'][var_name].getVal()['fields'].keys():
+                        return self.scopes[i]['vars_to_val'][var_name].getVal()['fields'][field_name].getVal()
+                    break
+                i -= 1
+            
+            # count = 0
+            # func = None
+            # for f in self.functions:
+            #     if f.get('name') == var_name:
+            #         count += 1
+            #         func = f
+            
+            # if func is not None:
+            #     if count == 1:
+            #         return func
+            #     else:
+            #         super().error(ErrorType.NAME_ERROR, f"Function var name {var_name} is ambiguous",)
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined",)
+        
         i = len(self.scopes) - 1
         while i >= 0:
-            if var_node.get('name') in self.scopes[i]['vars_to_val'].keys() :
-                return self.scopes[i]['vars_to_val'][var_node.get('name')].getVal()
+            if var_name in self.scopes[i]['vars_to_val'].keys() :
+                return self.scopes[i]['vars_to_val'][var_name].getVal()
             i -= 1
         
         count = 0
         func = None
         for f in self.functions:
-            if f.get('name') == var_node.get('name'):
+            if f.get('name') == var_name:
                 count += 1
                 func = f
         
@@ -413,10 +480,10 @@ class Interpreter(InterpreterBase):
             if count == 1:
                 return func
             else:
-                super().error(ErrorType.NAME_ERROR, f"Function var name {var_node.get('name')} is ambiguous",)
+                super().error(ErrorType.NAME_ERROR, f"Function var name {var_name} is ambiguous",)
             
         
-        super().error(ErrorType.NAME_ERROR, f"Variable {var_node.get('name')} has not been defined",)
+        super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined",)
     
     # binary ops, bool and arith
     def evaluate_binary_operator(self, expression_node):
@@ -777,22 +844,15 @@ class Interpreter(InterpreterBase):
 ## DELETEEE AT END
 ## open source testing ##
 
-# def main():
-#     inte = Interpreter()
-#     p1 = """func foo(f1, ref f2) {
-#   f1();  /* prints 1 */
-#   f2();  /* prints 1 */
-# }
-
-# func main() {
-#   x = 0;
-#   lam1 = lambda() { x = x + 1; print(x); };
-#   lam2 = lambda() { x = x + 1; print(x); };
-#   foo(lam1, lam2);
-#   lam1();  /* prints 1 */
-#   lam2();  /* prints 2 */
-# }"""
-#     inte.run(p1)
+def main():
+    inte = Interpreter()
+    p1 = """
+    func main() {
+        a = @;    /* @ is the symbol for creating a new object */
+        a.x = 10; /* adds a field called "x" to the object, sets value to 10 */
+        print(a.x);  /* prints 10 */
+        }"""
+    inte.run(p1)
                 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()
