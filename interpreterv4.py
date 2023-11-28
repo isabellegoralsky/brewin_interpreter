@@ -441,26 +441,21 @@ class Interpreter(InterpreterBase):
             var_name = names[0]
             field_name = names[1]
             
+            is_a_var_but_not_object = False
             i = len(self.scopes) - 1
             while i >= 0:
                 if var_name in self.scopes[i]['vars_to_val'].keys():
-                    if field_name in self.scopes[i]['vars_to_val'][var_name].getVal()['fields'].keys():
-                        return self.scopes[i]['vars_to_val'][var_name].getVal()['fields'][field_name].getVal()
-                    break
+                    if isinstance(self.scopes[i]['vars_to_val'][var_name].getVal(), dict) and 'fields' in self.scopes[i]['vars_to_val'][var_name].getVal().keys():
+                            is_a_var_but_not_object = False
+                            if field_name in self.scopes[i]['vars_to_val'][var_name].getVal()['fields'].keys():
+                                return self.scopes[i]['vars_to_val'][var_name].getVal()['fields'][field_name].getVal()
+                    else:
+                        is_a_var_but_not_object = True
+                            
                 i -= 1
-            
-            # count = 0
-            # func = None
-            # for f in self.functions:
-            #     if f.get('name') == var_name:
-            #         count += 1
-            #         func = f
-            
-            # if func is not None:
-            #     if count == 1:
-            #         return func
-            #     else:
-            #         super().error(ErrorType.NAME_ERROR, f"Function var name {var_name} is ambiguous",)
+                
+            if is_a_var_but_not_object:
+                super().error(ErrorType.TYPE_ERROR, f"Variable {var_name} is not been an obj",)
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined",)
         
         i = len(self.scopes) - 1
@@ -848,10 +843,11 @@ def main():
     inte = Interpreter()
     p1 = """
     func main() {
-        a = @;    /* @ is the symbol for creating a new object */
-        a.x = 10; /* adds a field called "x" to the object, sets value to 10 */
-        print(a.x);  /* prints 10 */
-        }"""
+  x = @;
+  y = x;           /* x and y refer to the same object in memory */
+  y.field = 5;
+  print(x.field);  /* prints 5 */
+}"""
     inte.run(p1)
                 
 if __name__ == "__main__":
