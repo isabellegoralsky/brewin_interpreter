@@ -156,12 +156,12 @@ class Interpreter(InterpreterBase):
         return None
 
     def mcall(self, mcall):
+        print("mcall: ", mcall)
+        objref = mcall.get('objref')
+        method_name = mcall.get('name')
         
         # check for func in var
         i = len(self.scopes) - 1
-        objref = mcall.get('objref')
-        method_name = mcall.get('name')
-        #print("mcall: ", mcall)
         is_an_object = False
         is_a_var = False
         while i>=0:
@@ -173,11 +173,11 @@ class Interpreter(InterpreterBase):
                     # check if method call anme is a member of obj ref
                     if method_name in self.scopes[i]['vars_to_val'][objref].getVal()['fields'].keys():
                         formal_method = self.scopes[i]['vars_to_val'][objref].getVal()['fields'][method_name] # value of variable passed in as method call
-                        #print("formal method: ", formal_method.getVal())
+                        
+                        formal_method = formal_method.getVal()
                         if type(formal_method) is Element and formal_method.elem_type == 'func' and len(formal_method.get('args')) == len(mcall.get('args')):
                             # objref.method_name has been assigned to a regular function. so run it.
                             self.scopes.append({'name': method_name, 'vars_to_val': {}})
-
                             l = len(self.scopes) - 1
                             for k in range(len(formal_method.get('args'))):
                                 if formal_method.get('args')[k].elem_type == 'refarg':
@@ -190,6 +190,9 @@ class Interpreter(InterpreterBase):
                                             super().error(ErrorType.NAME_ERROR,f"Arg {mcall.get('name')} isn't a function",)
                                     else:
                                         self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = Val(mcall.get('args')[k].get('val'))
+                            # append the 'this' var
+                            self.scopes[l]['vars_to_val']['this'] = copy.copy(self.scopes[i]['vars_to_val'][objref])
+                            
                             # run func
                             fu = self.run_func(formal_method)
                             
@@ -197,8 +200,6 @@ class Interpreter(InterpreterBase):
                             self.scopes.pop()
                             return fu
                         
-                        
-                        formal_method = formal_method.getVal() # get the lambda
                         if type(formal_method) is Element and formal_method.elem_type == 'lambda' and len(formal_method.get('args')) == len(mcall.get('args')):
                             # objref.method_name has been assigned to a lambda. run the lambda.
                             self.scopes.append({'name': method_name, 'vars_to_val': {}})
@@ -222,6 +223,9 @@ class Interpreter(InterpreterBase):
                                     else:
                                         # input is a primitive
                                         self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = Val(mcall.get('args')[k].get('val'))
+                            # append the 'this' var
+                            self.scopes[l]['vars_to_val']['this'] = copy.copy(self.scopes[i]['vars_to_val'][objref])
+                            
                             # run the func
                             fu = self.run_func(formal_method)
                             
@@ -229,7 +233,7 @@ class Interpreter(InterpreterBase):
                             self.scopes.pop()
                             return fu
                         else:
-                            super().error(ErrorType.TYPE_ERROR,f"Method {method_name} isn't a function",)
+                            super().error(ErrorType.TYPE_ERROR,f"Method {method_name} isn't a function",) #errrs here
             i -=1;
         
         if is_an_object or not is_a_var:
@@ -947,9 +951,19 @@ class Interpreter(InterpreterBase):
 def main():
     inte = Interpreter()
     p1 = """
+    func foo() { 
+        print(this.x);      /* this refers to object q in the call to q.foo() */
+        this.y = 20;
+    }
+
     func main() {
-        f.foo();
-        }"""
+        q = @;
+        q.x = 10;
+        q.foo = foo;        /* q.foo points at our foo function */
+
+        q.foo();            /* prints 10, then sets q.y to 20 */
+        print(q.y);         /* prints 20 */
+    }"""
     inte.run(p1)
                 
 if __name__ == "__main__":
