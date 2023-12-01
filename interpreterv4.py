@@ -844,6 +844,12 @@ class Interpreter(InterpreterBase):
                     else:
                         return False
                 return False
+            elif type(op1) is dict and type(op2) is dict:
+                if 'fields' in op1.keys() and 'fields' in op2.keys():
+                    #print("haiii")
+                    if op1 is op2:
+                        return True
+                return False
             else:
                 return False
         elif expression_node.elem_type == '!=':
@@ -887,6 +893,12 @@ class Interpreter(InterpreterBase):
                         if op1.get('name') == op2.get('name') and op1.get('args') == op2.get('args') and op1.get('statements') == op2.get('statements') and op1.get('closures') == op2.get('closures'):
                             return False
                 return True
+            elif type(op1) is dict and type(op2) is dict:
+                if 'fields' in op1.keys() and 'fields' in op2.keys():
+                    #print("haiii")
+                    if op1 is op2:
+                        return False
+                return True
             else:
                 return True
         else:
@@ -923,14 +935,15 @@ def main():
     inte = Interpreter()
     p1 = """
     func main() {
-        a = @;
-        a.x = 10;
-        a.member_func = lambda(p) { 
-            this.x = p;       /* sets a.x to value of p, using "this" keyword */
-        };
-        a.member_func(5);
-        print(a.x);         /* prints 5 */
-    }"""
+  x = @;
+  x.a = 10;
+  z = x;
+  y = @;
+  y.a = 10;
+
+  if (x == x && x == z) { print("This will print out!"); }
+  if (x == y) { print("This will not print!"); }
+}"""
     inte.run(p1)
                 
 if __name__ == "__main__":
