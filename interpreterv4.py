@@ -105,14 +105,14 @@ class Interpreter(InterpreterBase):
             while i >= 0:
                 if target_var_name in self.scopes[i]['vars_to_val'].keys():
                     flag = True
-                    self.scopes[i]['vars_to_val'][target_var_name].setVal({'fields':{}})
+                    self.scopes[i]['vars_to_val'][target_var_name].setVal({'fields':{'proto': None}})
                     break
                 i -= 1
             
             # else create it in this function
             if not flag:
                 l = len(self.scopes) - 1
-                self.scopes[l]['vars_to_val'][target_var_name] = Val({'fields':{}})
+                self.scopes[l]['vars_to_val'][target_var_name] = Val({'fields':{'proto': None}})
             return None
         
         resulting_value = self.evaluate_expression(source_node)
@@ -129,14 +129,37 @@ class Interpreter(InterpreterBase):
             #print("target var name: ", target_var_name, "field name: ", field_name)
             #print(resulting_value)
             
+            is_var_but_not_object = False
+            worked = False
             i = len(self.scopes) - 1
             while i >= 0:
                 if target_var_name in self.scopes[i]['vars_to_val'].keys():
-                    self.scopes[i]['vars_to_val'][target_var_name].getVal()['fields'][field_name] = Val(resulting_value)
-                    break
+                    # check that target var is an obj
+                    is_var_but_not_object = True
+                    if type(self.scopes[i]['vars_to_val'][target_var_name].getVal()) is dict and 'fields' in self.scopes[i]['vars_to_val'][target_var_name].getVal().keys():
+                        # must check if field name is proto
+                        if field_name == 'proto':
+                            #print("res val: ", resulting_value)
+                            if resulting_value is None or (type(resulting_value) == dict and 'fields' in resulting_value.keys()):
+                                # is copying proto by val tho...
+                                self.scopes[i]['vars_to_val'][target_var_name].getVal()['fields'][field_name] = Val(resulting_value)
+                            else:
+                                # tryna set proto to something that's not an object
+                                super().error(ErrorType.TYPE_ERROR,f"Non object var {resulting_value} assigned to proto",)
+                        else:
+                            self.scopes[i]['vars_to_val'][target_var_name].getVal()['fields'][field_name] = Val(resulting_value)
+                        is_var_but_not_object = False
+                        worked = True
+                        break
                 i -= 1
             
-            #return err cuz var doesn't exist
+            # return err cuz var doesn't exist or isn't an object
+            # setting x.field = y when x is not declared
+            if not worked:
+                if is_var_but_not_object:
+                    super().error(ErrorType.TYPE_ERROR,f"Dot op used on non object var {target_var_name}",)
+                else:
+                    super().error(ErrorType.NAME_ERROR,f"Var {target_var_name} not found",)
             return None
             
         
@@ -951,19 +974,13 @@ class Interpreter(InterpreterBase):
 def main():
     inte = Interpreter()
     p1 = """
-    func foo() { 
-        print(this.x);      /* this refers to object q in the call to q.foo() */
-        this.y = 20;
-    }
-
     func main() {
-        q = @;
-        q.x = 10;
-        q.foo = foo;        /* q.foo points at our foo function */
-
-        q.foo();            /* prints 10, then sets q.y to 20 */
-        print(q.y);         /* prints 20 */
-    }"""
+ p = @;
+   p.x = 10;
+   
+   c = @;
+   c.proto = p;
+}"""
     inte.run(p1)
                 
 if __name__ == "__main__":
