@@ -559,9 +559,10 @@ class Interpreter(InterpreterBase):
         return val_node.get('val')
     
     # value of var node
-    def get_value_of_variable(self, var_node): # need to do this for the other ones too
+    def get_value_of_variable(self, var_node):
 
         var_name = var_node.get('name')
+        #print(var_node)
         
         if '.' in var_name:
             # setting a field
@@ -572,16 +573,25 @@ class Interpreter(InterpreterBase):
             is_a_var_but_not_object = False
             i = len(self.scopes) - 1
             while i >= 0:
-                if var_name in self.scopes[i]['vars_to_val'].keys():
-                    if isinstance(self.scopes[i]['vars_to_val'][var_name].getVal(), dict) and 'fields' in self.scopes[i]['vars_to_val'][var_name].getVal().keys():
-                            is_a_var_but_not_object = False
-                            if field_name in self.scopes[i]['vars_to_val'][var_name].getVal()['fields'].keys():
-                                return self.scopes[i]['vars_to_val'][var_name].getVal()['fields'][field_name].getVal()
+                curr_obj = var_name
+                
+                while curr_obj is not None:
+                    if curr_obj in self.scopes[i]['vars_to_val'].keys():
+                        if isinstance(self.scopes[i]['vars_to_val'][curr_obj].getVal(), dict) and 'fields' in self.scopes[i]['vars_to_val'][curr_obj].getVal().keys():
+                                is_a_var_but_not_object = False
+                                if field_name in self.scopes[i]['vars_to_val'][curr_obj].getVal()['fields'].keys():
+                                    return self.scopes[i]['vars_to_val'][curr_obj].getVal()['fields'][field_name].getVal()
+                                else:
+                                    curr_obj = self.scopes[i]['vars_to_val'][curr_obj].getVal()['fields']['proto']
+                        else:
+                            is_a_var_but_not_object = True
+                            break
                     else:
-                        is_a_var_but_not_object = True
+                        break
                             
                 i -= 1
                 
+            # must check proto fields
                 
             if is_a_var_but_not_object:
                 super().error(ErrorType.TYPE_ERROR, f"Variable {var_name} is not been an obj",)
