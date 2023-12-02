@@ -91,10 +91,12 @@ class Interpreter(InterpreterBase):
             return self.mcall(statement_node)
 
     def do_assignment(self, statement_node):
+        #print("statement node: ", statement_node)
         target_var_name = statement_node.get('name')
         # in x = 2 + 10 this is x
         source_node = statement_node.get('expression')
         #print("target ", target_var_name, "expression ", source_node)
+        #print("source node name: ", source_node.get('name'))
         # either expression like 2+10, value like 2, or var like x=y
         
         # what about a.x = @
@@ -142,7 +144,7 @@ class Interpreter(InterpreterBase):
                             #print("res val: ", resulting_value)
                             if resulting_value is None or (type(resulting_value) == dict and 'fields' in resulting_value.keys()):
                                 # is copying proto by val tho...
-                                self.scopes[i]['vars_to_val'][target_var_name].getVal()['fields'][field_name] = Val(resulting_value)
+                                self.scopes[i]['vars_to_val'][target_var_name].getVal()['fields'][field_name] = source_node.get('name')
                             else:
                                 # tryna set proto to something that's not an object
                                 super().error(ErrorType.TYPE_ERROR,f"Non object var {resulting_value} assigned to proto",)
@@ -179,7 +181,7 @@ class Interpreter(InterpreterBase):
         return None
 
     def mcall(self, mcall):
-        print("mcall: ", mcall)
+        #print("mcall: ", mcall)
         objref = mcall.get('objref')
         method_name = mcall.get('name')
         
@@ -194,69 +196,75 @@ class Interpreter(InterpreterBase):
                 if isinstance(self.scopes[i]['vars_to_val'][objref].getVal(), dict) and 'fields' in self.scopes[i]['vars_to_val'][objref].getVal().keys():
                     is_an_object = True
                     # check if method call anme is a member of obj ref
-                    if method_name in self.scopes[i]['vars_to_val'][objref].getVal()['fields'].keys():
-                        formal_method = self.scopes[i]['vars_to_val'][objref].getVal()['fields'][method_name] # value of variable passed in as method call
-                        
-                        formal_method = formal_method.getVal()
-                        if type(formal_method) is Element and formal_method.elem_type == 'func' and len(formal_method.get('args')) == len(mcall.get('args')):
-                            # objref.method_name has been assigned to a regular function. so run it.
-                            self.scopes.append({'name': method_name, 'vars_to_val': {}})
-                            l = len(self.scopes) - 1
-                            for k in range(len(formal_method.get('args'))):
-                                if formal_method.get('args')[k].elem_type == 'refarg':
-                                    self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
-                                else:
-                                    if mcall.get('args')[k].elem_type == 'var':
-                                        if mcall.get('args')[k].get('name') in self.scopes[l-1]['vars_to_val']:
-                                            self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
-                                        else:
-                                            super().error(ErrorType.NAME_ERROR,f"Arg {mcall.get('name')} isn't a function",)
+                    curr_obj = objref
+                    while curr_obj is not None:
+                        #print(curr_obj)
+                        if method_name in self.scopes[i]['vars_to_val'][curr_obj].getVal()['fields'].keys():
+                            formal_method = self.scopes[i]['vars_to_val'][curr_obj].getVal()['fields'][method_name] # value of variable passed in as method call
+                            
+                            formal_method = formal_method.getVal()
+                            if type(formal_method) is Element and formal_method.elem_type == 'func' and len(formal_method.get('args')) == len(mcall.get('args')):
+                                # objref.method_name has been assigned to a regular function. so run it.
+                                self.scopes.append({'name': method_name, 'vars_to_val': {}})
+                                l = len(self.scopes) - 1
+                                for k in range(len(formal_method.get('args'))):
+                                    if formal_method.get('args')[k].elem_type == 'refarg':
+                                        self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
                                     else:
-                                        self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = Val(mcall.get('args')[k].get('val'))
-                            # append the 'this' var
-                            self.scopes[l]['vars_to_val']['this'] = copy.copy(self.scopes[i]['vars_to_val'][objref])
-                            
-                            # run func
-                            fu = self.run_func(formal_method)
-                            
-                            # want to remove scope
-                            self.scopes.pop()
-                            return fu
-                        
-                        if type(formal_method) is Element and formal_method.elem_type == 'lambda' and len(formal_method.get('args')) == len(mcall.get('args')):
-                            # objref.method_name has been assigned to a lambda. run the lambda.
-                            self.scopes.append({'name': method_name, 'vars_to_val': {}})
-                            
-                            l = len(self.scopes) - 1
-                            for key,val in formal_method.get('closures').items(): # key is var name and val is Val obj
-                                self.scopes[l]['vars_to_val'][key] = val
-                            
-                            # check args and do the same as above
-                            for k in range(len(formal_method.get('args'))):
-                                #"formal arg: ", formal_func.get('args')[k])
-                                #print("input: ", fcall.get('args')[k].elem_type)
-                                if formal_method.get('args')[k].elem_type == 'refarg':
-                                    self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
-                                else:
-                                    if mcall.get('args')[k].elem_type == 'var':
-                                        if mcall.get('args')[k].get('name') in self.scopes[l-1]['vars_to_val']:
-                                            self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
+                                        if mcall.get('args')[k].elem_type == 'var':
+                                            if mcall.get('args')[k].get('name') in self.scopes[l-1]['vars_to_val']:
+                                                self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
+                                            else:
+                                                super().error(ErrorType.NAME_ERROR,f"Arg {mcall.get('name')} isn't a function",)
                                         else:
-                                            super().error(ErrorType.NAME_ERROR,f"Arg {mcall.get('name')} isn't a function",)
+                                            self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = Val(mcall.get('args')[k].get('val'))
+                                # append the 'this' var
+                                self.scopes[l]['vars_to_val']['this'] = copy.copy(self.scopes[i]['vars_to_val'][objref])
+                                
+                                # run func
+                                fu = self.run_func(formal_method)
+                                
+                                # want to remove scope
+                                self.scopes.pop()
+                                return fu
+                            
+                            if type(formal_method) is Element and formal_method.elem_type == 'lambda' and len(formal_method.get('args')) == len(mcall.get('args')):
+                                # objref.method_name has been assigned to a lambda. run the lambda.
+                                self.scopes.append({'name': method_name, 'vars_to_val': {}})
+                                
+                                l = len(self.scopes) - 1
+                                for key,val in formal_method.get('closures').items(): # key is var name and val is Val obj
+                                    self.scopes[l]['vars_to_val'][key] = val
+                                
+                                # check args and do the same as above
+                                for k in range(len(formal_method.get('args'))):
+                                    #"formal arg: ", formal_func.get('args')[k])
+                                    #print("input: ", fcall.get('args')[k].elem_type)
+                                    if formal_method.get('args')[k].elem_type == 'refarg':
+                                        self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.copy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
                                     else:
-                                        # input is a primitive
-                                        self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = Val(mcall.get('args')[k].get('val'))
-                            # append the 'this' var
-                            self.scopes[l]['vars_to_val']['this'] = copy.copy(self.scopes[i]['vars_to_val'][objref])
-                            
-                            # run the func
-                            fu = self.run_func(formal_method)
-                            
-                            # remove scope
-                            self.scopes.pop()
-                            return fu
+                                        if mcall.get('args')[k].elem_type == 'var':
+                                            if mcall.get('args')[k].get('name') in self.scopes[l-1]['vars_to_val']:
+                                                self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = copy.deepcopy(self.scopes[l-1]['vars_to_val'][mcall.get('args')[k].get('name')])
+                                            else:
+                                                super().error(ErrorType.NAME_ERROR,f"Arg {mcall.get('name')} isn't a function",)
+                                        else:
+                                            # input is a primitive
+                                            self.scopes[l]['vars_to_val'][formal_method.get('args')[k].get('name')] = Val(mcall.get('args')[k].get('val'))
+                                # append the 'this' var
+                                self.scopes[l]['vars_to_val']['this'] = copy.copy(self.scopes[i]['vars_to_val'][objref])
+                                
+                                # run the func
+                                fu = self.run_func(formal_method)
+                                
+                                # remove scope
+                                self.scopes.pop()
+                                return fu
+                            else:
+                                super().error(ErrorType.TYPE_ERROR,f"Method {method_name} isn't a function",) #errrs here
                         else:
-                            super().error(ErrorType.TYPE_ERROR,f"Method {method_name} isn't a function",) #errrs here
+                            #update
+                            curr_obj = self.scopes[i]['vars_to_val'][curr_obj].getVal()['fields']['proto']
             i -=1;
         
         if is_an_object or not is_a_var:
@@ -573,6 +581,7 @@ class Interpreter(InterpreterBase):
                         is_a_var_but_not_object = True
                             
                 i -= 1
+                
                 
             if is_a_var_but_not_object:
                 super().error(ErrorType.TYPE_ERROR, f"Variable {var_name} is not been an obj",)
@@ -975,12 +984,20 @@ def main():
     inte = Interpreter()
     p1 = """
     func main() {
- p = @;
+   p = @;
    p.x = 10;
-   
+   p.hello = lambda() { print("Hello world!"); };
+
+
    c = @;
-   c.proto = p;
-}"""
+   c.proto = p; /* c is a child of p, inherits x and hello() */
+   c.y = 20;    /* c may have its own fields/methods too */
+
+   c.hello(); /* prints "Hello world!" */
+   print(c.x); /* prints 10 */
+   print(c.y); /* prints 20 */
+}
+"""
     inte.run(p1)
                 
 if __name__ == "__main__":
